@@ -1,7 +1,16 @@
 <script setup lang="ts">
 import { computed, reactive, watch } from 'vue'
+import PlaybookSelect from './PlaybookSelect.vue'
+import TradeScreenshotUploader from './TradeScreenshotUploader.vue'
+import TradeSignalSelect from './TradeSignalSelect.vue'
+import TradeTagEditor from './TradeTagEditor.vue'
+import { useSignalStore } from '@/stores/useSignalStore'
 
-import type { TradeRecord } from '@/types/trade'
+import type {
+  TradeMistakeTag,
+  TradeRecord,
+  TradeScreenshot,
+} from '@/types/trade'
 import type {
   StoredTradeReview,
   TradeReviewForm,
@@ -17,7 +26,40 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: []
   submit: [review: TradeReviewResult]
+  'update-trade': [tradeId: string, updates: Partial<TradeRecord>]
 }>()
+
+const signalStore = useSignalStore()
+
+type ScreenshotType = 'before' | 'after'
+
+interface ScreenshotChangeData {
+  type: ScreenshotType
+  name: string
+  dataUrl: string
+}
+
+interface JournalContextForm {
+  signalId: string | null
+  playbook: string
+  reason: string
+  beforeScreenshot: TradeScreenshot | null
+  afterScreenshot: TradeScreenshot | null
+  mistakeTags: TradeMistakeTag[]
+  customMistakeTags: string[]
+}
+
+const createJournalContext = (): JournalContextForm => ({
+  signalId: null,
+  playbook: '',
+  reason: '',
+  beforeScreenshot: null,
+  afterScreenshot: null,
+  mistakeTags: [],
+  customMistakeTags: [],
+})
+
+const journal = reactive<JournalContextForm>(createJournalContext())
 
 const createInitialForm = (): TradeReviewForm => ({
   followedPlan: null,
@@ -147,13 +189,29 @@ const isValid = computed(() => {
   return (
     completedChecklistCount.value ===
       checklistItems.value.length &&
-    form.strengths.trim() &&
-    form.mistakes.trim() &&
-    form.improvement.trim() &&
+    Boolean(journal.signalId) &&
+    journal.playbook.trim() &&
+    journal.reason.trim() &&
     form.nextTradeRule.trim() &&
     form.summary.trim()
   )
 })
+
+const evidenceItems = computed(() => [
+  { label: 'Signal', done: Boolean(journal.signalId) },
+  { label: 'Playbook', done: Boolean(journal.playbook.trim()) },
+  { label: '進場理由', done: Boolean(journal.reason.trim()) },
+  { label: '交易前圖', done: Boolean(journal.beforeScreenshot) },
+  { label: '交易後圖', done: Boolean(journal.afterScreenshot) },
+])
+
+const evidenceCompletedCount = computed(() =>
+  evidenceItems.value.filter(item => item.done).length,
+)
+
+const evidenceProgress = computed(() =>
+  Math.round((evidenceCompletedCount.value / evidenceItems.value.length) * 100),
+)
 
 const setChecklistValue = (
   key:
@@ -169,10 +227,28 @@ const setChecklistValue = (
 
 const resetForm = (): void => {
   Object.assign(form, createInitialForm())
+  Object.assign(journal, createJournalContext())
 }
 
 const loadForm = (): void => {
   resetForm()
+
+  if (props.trade) {
+    Object.assign(journal, {
+      signalId: props.trade.signalId,
+      playbook: props.trade.playbook,
+      reason: props.trade.reason,
+      beforeScreenshot: props.trade.beforeScreenshot
+        ? { ...props.trade.beforeScreenshot }
+        : null,
+      afterScreenshot: props.trade.afterScreenshot
+        ? { ...props.trade.afterScreenshot }
+        : null,
+      mistakeTags: [...props.trade.mistakeTags],
+      customMistakeTags: [...props.trade.customMistakeTags],
+    })
+  }
+
   if (!props.existingReview) return
 
   Object.assign(form, {
@@ -191,6 +267,43 @@ const loadForm = (): void => {
   })
 }
 
+const handleScreenshotChange = (
+  screenshot: ScreenshotChangeData,
+): void => {
+  const existing = screenshot.type === 'before'
+    ? journal.beforeScreenshot
+    : journal.afterScreenshot
+  const next: TradeScreenshot = {
+    name: screenshot.name,
+    dataUrl: screenshot.dataUrl,
+    storagePath: existing?.storagePath ?? null,
+  }
+
+  if (screenshot.type === 'before') {
+    journal.beforeScreenshot = next
+  }
+  else {
+    journal.afterScreenshot = next
+  }
+}
+
+const handleScreenshotRemove = (type: ScreenshotType): void => {
+  if (type === 'before') {
+    journal.beforeScreenshot = null
+  }
+  else {
+    journal.afterScreenshot = null
+  }
+}
+
+const updateMistakeTags = (tags: TradeMistakeTag[]): void => {
+  journal.mistakeTags = [...tags]
+}
+
+const updateCustomMistakeTags = (tags: string[]): void => {
+  journal.customMistakeTags = [...tags]
+}
+
 const closeModal = (): void => {
   emit('close')
 }
@@ -199,6 +312,19 @@ const submitReview = (): void => {
   if (!props.trade || !isValid.value) {
     return
   }
+
+  const selectedSignal = signalStore.getSignalById(journal.signalId)
+
+  emit('update-trade', props.trade.id, {
+    signalId: journal.signalId,
+    signal: selectedSignal?.name ?? props.trade.signal,
+    playbook: journal.playbook.trim(),
+    reason: journal.reason.trim(),
+    beforeScreenshot: journal.beforeScreenshot,
+    afterScreenshot: journal.afterScreenshot,
+    mistakeTags: [...journal.mistakeTags],
+    customMistakeTags: [...journal.customMistakeTags],
+  })
 
   emit('submit', {
     tradeId: props.trade.id,
@@ -258,13 +384,13 @@ watch(
               <p
                 class="text-xs font-medium tracking-[0.2em] text-amber-400"
               >
-                交易復盤
+                FREEDOM TRADE JOURNAL
               </p>
 
               <h2
                 class="mt-2 text-2xl font-semibold text-zinc-100"
               >
-                {{ trade.symbol }} 復盤
+                {{ trade.symbol }} 交易復盤
               </h2>
 
               <p class="mt-1 text-sm text-zinc-500">
@@ -377,6 +503,103 @@ watch(
                 <p class="mt-1 text-xs text-zinc-500">
                   {{ scoreLabel }}
                 </p>
+              </div>
+            </section>
+
+            <section
+              class="overflow-hidden rounded-3xl border border-sky-500/20 bg-sky-500/[0.04]"
+            >
+              <div class="border-b border-zinc-800 p-5">
+                <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p class="text-[10px] font-medium uppercase tracking-[0.2em] text-sky-300/70">
+                      Journal Context
+                    </p>
+                    <h3 class="mt-2 text-lg font-semibold text-zinc-100">
+                      這筆單為什麼做？
+                    </h3>
+                    <p class="mt-1 text-sm leading-6 text-zinc-500">
+                      MT5 已提供成交資料；這裡只補上你的交易決策與圖表證據，不修改 Broker 原始成交結果。
+                    </p>
+                  </div>
+
+                  <div class="shrink-0 rounded-2xl border border-zinc-800 bg-zinc-950/60 px-4 py-3 text-right">
+                    <p class="text-[10px] uppercase tracking-[0.16em] text-zinc-600">Evidence</p>
+                    <p class="mt-1 text-lg font-semibold text-sky-300">{{ evidenceProgress }}%</p>
+                    <p class="text-xs text-zinc-600">{{ evidenceCompletedCount }}/{{ evidenceItems.length }} 項</p>
+                  </div>
+                </div>
+
+                <div class="mt-4 flex flex-wrap gap-2">
+                  <span
+                    v-for="item in evidenceItems"
+                    :key="item.label"
+                    class="rounded-full border px-2.5 py-1 text-xs"
+                    :class="item.done
+                      ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
+                      : 'border-zinc-800 bg-zinc-950/50 text-zinc-600'"
+                  >
+                    {{ item.done ? '✓' : '○' }} {{ item.label }}
+                  </span>
+                </div>
+              </div>
+
+              <div class="space-y-5 p-5">
+                <div class="grid gap-5 xl:grid-cols-2">
+                  <TradeSignalSelect v-model="journal.signalId" />
+
+                  <PlaybookSelect
+                    v-model="journal.playbook"
+                    :trade-direction="trade.direction"
+                    include-paused
+                    required
+                  />
+                </div>
+
+                <label class="block">
+                  <span class="text-sm font-medium text-zinc-300">當時的進場理由</span>
+                  <textarea
+                    v-model="journal.reason"
+                    rows="4"
+                    required
+                    placeholder="例如：1H 支撐區反應，15M 結構轉強，1M 出現 W 型確認後進場。"
+                    class="mt-2 w-full resize-y rounded-2xl border border-zinc-800 bg-zinc-950/70 px-4 py-3 text-sm leading-7 text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-sky-500/40"
+                  />
+                </label>
+
+                <TradeTagEditor
+                  :model-value="journal.mistakeTags"
+                  :custom-tags="journal.customMistakeTags"
+                  @update:model-value="updateMistakeTags"
+                  @update:custom-tags="updateCustomMistakeTags"
+                />
+
+                <div>
+                  <div class="flex items-end justify-between gap-4">
+                    <div>
+                      <h4 class="font-medium text-zinc-200">圖表證據</h4>
+                      <p class="mt-1 text-sm text-zinc-500">前後圖不是完成復盤的硬性條件，但有圖才能讓之後的 Review / AI 分析更有價值。</p>
+                    </div>
+                  </div>
+
+                  <div class="mt-4 grid gap-5 xl:grid-cols-2">
+                    <TradeScreenshotUploader
+                      type="before"
+                      :image-url="journal.beforeScreenshot?.dataUrl"
+                      :storage-path="journal.beforeScreenshot?.storagePath"
+                      @change="handleScreenshotChange"
+                      @remove="handleScreenshotRemove"
+                    />
+
+                    <TradeScreenshotUploader
+                      type="after"
+                      :image-url="journal.afterScreenshot?.dataUrl"
+                      :storage-path="journal.afterScreenshot?.storagePath"
+                      @change="handleScreenshotChange"
+                      @remove="handleScreenshotRemove"
+                    />
+                  </div>
+                </div>
               </div>
             </section>
 
@@ -743,7 +966,7 @@ watch(
                 :disabled="!isValid"
                 class="rounded-xl border border-amber-500/30 bg-amber-500/10 px-6 py-3 text-sm font-medium text-amber-300 transition hover:border-amber-400/50 hover:bg-amber-500/15 disabled:cursor-not-allowed disabled:border-zinc-800 disabled:bg-zinc-900 disabled:text-zinc-600"
               >
-                {{ existingReview ? '更新復盤' : '完成並儲存復盤' }}
+                {{ existingReview ? '更新 Journal' : '完成並儲存 Journal' }}
               </button>
             </footer>
           </form>

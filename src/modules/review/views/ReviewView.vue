@@ -294,6 +294,14 @@ const submitReview = (review: TradeReviewResult): void => {
   reviewModalOpen.value = false
   selectedTrade.value = null
 }
+
+const updateJournalContext = (
+  tradeId: string,
+  updates: Partial<TradeRecord>,
+): void => {
+  const updated = tradeStore.updateTrade(tradeId, updates)
+  if (updated) selectedTrade.value = updated
+}
 </script>
 
 <template>
@@ -640,6 +648,7 @@ const submitReview = (review: TradeReviewResult): void => {
       :trade="selectedTrade"
       :existing-review="selectedExistingReview"
       @close="closeReview"
+      @update-trade="updateJournalContext"
       @submit="submitReview"
     />
   </div>

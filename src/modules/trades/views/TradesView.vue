@@ -1341,6 +1341,7 @@ const toggleTradeFavorite = (
       :trade="selectedTrade"
       :existing-review="selectedExistingReview"
       @close="closeTradeReview"
+      @update-trade="updateTrade"
       @submit="submitTradeReview"
     />
   </div>
