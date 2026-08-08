@@ -25,7 +25,15 @@ This document defines the trading domain for HY Freedom OS.
 |--------|----------------------|
 | Mission Control | _TBD_ |
 | Planning | _TBD_ |
-| Economic Calendar | _TBD_ |
+| Economic Calendar | USD medium/high-impact events increase the daily risk level. New entries are blocked during generated event windows. |
+
+## Economic-event risk rules
+
+- Standard high-impact event: no new positions from 30 minutes before until 30 minutes after release.
+- CPI, NFP, FOMC, interest-rate, Powell, PCE, GDP, and unemployment-rate events: window starts 45 minutes before release.
+- Medium-impact event: no new positions from 15 minutes before until 15 minutes after release.
+- The window ending does not imply immediate entry permission; spread, volatility, structure, and the normal trade checklist must recover first.
+- Missing live data never becomes an implicit safe signal. The UI displays cache age or an unavailable state.
 | Trades | _TBD_ |
 | Playbook | _TBD_ |
 | Review | _TBD_ |

@@ -4,14 +4,14 @@ import AppSidebar from '@/components/AppSidebar.vue'
 </script>
 
 <template>
-  <div class="min-h-screen bg-zinc-950 text-zinc-100">
+  <div class="hy-app-shell min-h-screen">
     <AppSidebar />
 
-    <div class="lg:pl-72">
+    <div class="min-h-screen lg:pl-64">
       <AppHeader />
 
-      <main class="p-6 lg:p-10">
-        <div class="mx-auto max-w-7xl">
+      <main class="px-4 pb-10 pt-4 sm:px-6 lg:px-8">
+        <div class="mx-auto w-full max-w-[1800px]">
           <RouterView />
         </div>
       </main>

@@ -1,0 +1,48 @@
+import type { EconomicEvent } from '@/types/economic-calendar'
+
+export const economicCalendarMock: EconomicEvent[] = [
+  {
+    id: 1,
+    time: '08:30',
+    country: '澳洲',
+    currency: 'AUD',
+    title: '零售銷售',
+    impact: 3,
+    previous: '0.4%',
+    forecast: '0.6%',
+    actual: '',
+  },
+  {
+    id: 2,
+    time: '15:00',
+    country: '英國',
+    currency: 'GBP',
+    title: 'GDP',
+    impact: 4,
+    previous: '0.2%',
+    forecast: '0.3%',
+    actual: '',
+  },
+  {
+    id: 3,
+    time: '20:30',
+    country: '美國',
+    currency: 'USD',
+    title: 'CPI 消費者物價指數',
+    impact: 5,
+    previous: '2.7%',
+    forecast: '2.8%',
+    actual: '',
+  },
+  {
+    id: 4,
+    time: '22:00',
+    country: '美國',
+    currency: 'USD',
+    title: 'ISM 製造業 PMI',
+    impact: 4,
+    previous: '49.1',
+    forecast: '49.8%',
+    actual: '',
+  },
+]

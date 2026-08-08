@@ -1,5 +1,533 @@
 @import 'tailwindcss';
 
+:root {
+  color-scheme: dark;
+  --hy-app-bg: #09090b;
+  --hy-panel: #18181b;
+  --hy-panel-soft: rgba(24, 24, 27, 0.7);
+  --hy-sidebar: #09090b;
+  --hy-topbar: rgba(9, 9, 11, 0.9);
+  --hy-border: rgba(39, 39, 42, 0.8);
+  --hy-text: #f4f4f5;
+  --hy-muted: #a1a1aa;
+  --hy-control: rgba(24, 24, 27, 0.82);
+  --hy-control-hover: #27272a;
+  --hy-divider: rgba(63, 63, 70, 0.72);
+  --hy-chart-grid: rgba(255, 255, 255, 0.045);
+  --hy-soft-shadow: rgba(0, 0, 0, 0.2);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --hy-app-bg: #f5f7fb;
+  --hy-panel: #ffffff;
+  --hy-panel-soft: rgba(255, 255, 255, 0.88);
+  --hy-sidebar: #ffffff;
+  --hy-topbar: rgba(255, 255, 255, 0.88);
+  --hy-border: rgba(203, 213, 225, 0.78);
+  --hy-text: #0f172a;
+  --hy-muted: #64748b;
+  --hy-control: rgba(248, 250, 252, 0.96);
+  --hy-control-hover: #eef2f7;
+  --hy-divider: rgba(203, 213, 225, 0.72);
+  --hy-chart-grid: rgba(100, 116, 139, 0.16);
+  --hy-soft-shadow: rgba(15, 23, 42, 0.08);
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
 body {
-  @apply bg-zinc-950 text-zinc-100 antialiased;
+  margin: 0;
+  background: var(--hy-app-bg);
+  color: var(--hy-text);
+  @apply antialiased;
+}
+
+body,
+button,
+input,
+select,
+textarea,
+.hy-app-shell,
+.hy-sidebar,
+.hy-topbar {
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease;
+}
+
+.hy-app-shell {
+  background: var(--hy-app-bg);
+  color: var(--hy-text);
+}
+
+.hy-sidebar {
+  border-color: var(--hy-border);
+  background: var(--hy-sidebar);
+}
+
+.hy-topbar {
+  border-color: var(--hy-border);
+  background: var(--hy-topbar);
+}
+
+.hy-theme-toggle {
+  display: inline-flex;
+  height: 2.5rem;
+  width: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--hy-border);
+  border-radius: 0.75rem;
+  background: var(--hy-control);
+  color: var(--hy-muted);
+  transition:
+    transform 160ms ease,
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
+}
+
+.hy-theme-toggle:hover {
+  transform: translateY(-1px);
+  border-color: rgba(245, 158, 11, 0.42);
+  background: var(--hy-control-hover);
+  color: #f59e0b;
+}
+
+.hy-theme-toggle:focus-visible,
+.hy-theme-choice:focus-visible {
+  outline: 2px solid #f59e0b;
+  outline-offset: 2px;
+}
+
+.hy-theme-choice {
+  position: relative;
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  min-height: 6.5rem;
+  padding: 0.875rem;
+  border: 1px solid var(--hy-border);
+  border-radius: 1rem;
+  background: var(--hy-control);
+  text-align: left;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.hy-theme-choice:hover {
+  transform: translateY(-1px);
+  border-color: rgba(245, 158, 11, 0.38);
+}
+
+.hy-theme-choice-active {
+  border-color: rgba(245, 158, 11, 0.58);
+  box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.15);
+}
+
+.hy-theme-choice strong,
+.hy-theme-choice small {
+  display: block;
+}
+
+.hy-theme-choice strong {
+  color: var(--hy-text);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.hy-theme-choice small {
+  margin-top: 0.25rem;
+  color: var(--hy-muted);
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+}
+
+.hy-theme-preview {
+  display: grid;
+  height: 4rem;
+  grid-template-columns: 1.15rem 1fr;
+  grid-template-rows: 0.8rem 1fr;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 0.7rem;
+  box-shadow: 0 7px 18px rgba(15, 23, 42, 0.12);
+}
+
+.hy-theme-preview span:first-child {
+  grid-row: 1 / -1;
+}
+
+.hy-theme-preview span:nth-child(3) {
+  margin: 0.45rem;
+  border-radius: 0.3rem;
+}
+
+.hy-theme-preview-dark {
+  background: #09090b;
+}
+
+.hy-theme-preview-dark span:first-child {
+  background: #18181b;
+}
+
+.hy-theme-preview-dark span:nth-child(2) {
+  background: #27272a;
+}
+
+.hy-theme-preview-dark span:nth-child(3) {
+  background: #18181b;
+}
+
+.hy-theme-preview-light {
+  background: #f1f5f9;
+}
+
+.hy-theme-preview-light span:first-child {
+  background: #e2e8f0;
+}
+
+.hy-theme-preview-light span:nth-child(2) {
+  background: #ffffff;
+}
+
+.hy-theme-preview-light span:nth-child(3) {
+  background: #ffffff;
+}
+
+.hy-theme-check {
+  display: inline-flex;
+  height: 1.5rem;
+  width: 1.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.16);
+  color: #f59e0b;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+:root[data-theme='light'] .hy-theme-toggle:hover {
+  border-color: rgba(180, 83, 9, 0.34);
+  color: #b45309;
+}
+
+:root[data-theme='light'] .hy-theme-choice-active {
+  border-color: rgba(180, 83, 9, 0.42);
+  box-shadow: inset 0 0 0 1px rgba(180, 83, 9, 0.1);
+}
+
+:root[data-theme='light'] .hy-theme-check {
+  background: rgba(180, 83, 9, 0.1);
+  color: #b45309;
+}
+
+/*
+ * Light theme compatibility layer.
+ * The existing Freedom OS screens use the Zinc palette directly. Keeping the
+ * mapping here makes the theme global, including older and newly added modules,
+ * without duplicating every component into dark/light variants.
+ */
+:root[data-theme='light'] .bg-zinc-950,
+:root[data-theme='light'] [class~='bg-zinc-950/40'],
+:root[data-theme='light'] [class~='bg-zinc-950/45'],
+:root[data-theme='light'] [class~='bg-zinc-950/50'],
+:root[data-theme='light'] [class~='bg-zinc-950/55'],
+:root[data-theme='light'] [class~='bg-zinc-950/60'],
+:root[data-theme='light'] [class~='bg-zinc-950/70'],
+:root[data-theme='light'] [class~='bg-zinc-950/90'],
+:root[data-theme='light'] [class~='bg-zinc-950/95'] {
+  background-color: #f8fafc !important;
+}
+
+:root[data-theme='light'] .bg-zinc-900,
+:root[data-theme='light'] [class~='bg-zinc-900/50'],
+:root[data-theme='light'] [class~='bg-zinc-900/60'],
+:root[data-theme='light'] [class~='bg-zinc-900/65'],
+:root[data-theme='light'] [class~='bg-zinc-900/70'],
+:root[data-theme='light'] [class~='bg-zinc-900/80'] {
+  background-color: rgba(255, 255, 255, 0.94) !important;
+}
+
+:root[data-theme='light'] .bg-zinc-800,
+:root[data-theme='light'] [class~='bg-zinc-800/25'],
+:root[data-theme='light'] [class~='bg-zinc-800/30'],
+:root[data-theme='light'] [class~='bg-zinc-800/50'],
+:root[data-theme='light'] [class~='bg-zinc-800/60'],
+:root[data-theme='light'] [class~='bg-zinc-800/70'],
+:root[data-theme='light'] [class~='bg-zinc-800/80'] {
+  background-color: #eef2f7 !important;
+}
+
+:root[data-theme='light'] .bg-zinc-700 {
+  background-color: #e2e8f0 !important;
+}
+
+:root[data-theme='light'] [class~='bg-black/10'],
+:root[data-theme='light'] [class~='bg-black/15'],
+:root[data-theme='light'] [class~='bg-black/20'] {
+  background-color: rgba(241, 245, 249, 0.84) !important;
+}
+
+:root[data-theme='light'] [class~='bg-white/[0.02]'],
+:root[data-theme='light'] [class~='bg-white/[0.025]'],
+:root[data-theme='light'] [class~='bg-white/[0.035]'],
+:root[data-theme='light'] [class~='bg-white/[0.04]'],
+:root[data-theme='light'] [class~='bg-white/[0.06]'],
+:root[data-theme='light'] [class~='bg-white/[0.08]'] {
+  background-color: rgba(15, 23, 42, 0.035) !important;
+}
+
+:root[data-theme='light'] [class~='bg-[#101012]'],
+:root[data-theme='light'] [class~='bg-[#101012]/90'],
+:root[data-theme='light'] [class~='bg-[#101012]/95'],
+:root[data-theme='light'] [class~='bg-[#111113]'] {
+  background-color: #ffffff !important;
+}
+
+:root[data-theme='light'] [class~='bg-[#121214]'] {
+  background-color: #f8fafc !important;
+}
+
+:root[data-theme='light'] .text-zinc-100 {
+  color: #0f172a !important;
+}
+
+:root[data-theme='light'] .text-zinc-200 {
+  color: #172033 !important;
+}
+
+:root[data-theme='light'] .text-zinc-300 {
+  color: #1e293b !important;
+}
+
+:root[data-theme='light'] .text-zinc-400 {
+  color: #334155 !important;
+}
+
+:root[data-theme='light'] .text-zinc-500 {
+  color: #526175 !important;
+}
+
+:root[data-theme='light'] .text-zinc-600 {
+  color: #64748b !important;
+}
+
+:root[data-theme='light'] .text-zinc-700 {
+  color: #64748b !important;
+}
+
+:root[data-theme='light'] .text-zinc-800,
+:root[data-theme='light'] .text-zinc-950 {
+  color: #0f172a !important;
+}
+
+:root[data-theme='light'] .text-white,
+:root[data-theme='light'] [class~='hover:text-white']:hover {
+  color: #0f172a !important;
+}
+
+:root[data-theme='light'] [class~='bg-rose-500'][class~='text-white'] {
+  color: #ffffff !important;
+}
+
+:root[data-theme='light'] .text-rose-200,
+:root[data-theme='light'] .text-rose-300,
+:root[data-theme='light'] .text-rose-400,
+:root[data-theme='light'] [class~='text-rose-200/60'],
+:root[data-theme='light'] [class~='text-rose-200/70'],
+:root[data-theme='light'] [class~='text-rose-300/45'],
+:root[data-theme='light'] [class~='text-rose-300/50'],
+:root[data-theme='light'] [class~='text-rose-300/60'],
+:root[data-theme='light'] [class~='text-rose-300/70'],
+:root[data-theme='light'] [class~='hover:text-rose-300']:hover {
+  color: #be123c !important;
+}
+
+:root[data-theme='light'] .text-amber-200,
+:root[data-theme='light'] .text-amber-300,
+:root[data-theme='light'] .text-amber-400,
+:root[data-theme='light'] [class~='text-amber-100/45'],
+:root[data-theme='light'] [class~='text-amber-200/60'],
+:root[data-theme='light'] [class~='text-amber-200/70'],
+:root[data-theme='light'] [class~='text-amber-300/40'],
+:root[data-theme='light'] [class~='text-amber-300/50'],
+:root[data-theme='light'] [class~='text-amber-300/60'],
+:root[data-theme='light'] [class~='text-amber-300/70'],
+:root[data-theme='light'] [class~='text-amber-300/80'],
+:root[data-theme='light'] [class~='hover:text-amber-300/40']:hover,
+:root[data-theme='light'] [class~='hover:text-amber-300']:hover {
+  color: #b45309 !important;
+}
+
+:root[data-theme='light'] .text-emerald-200,
+:root[data-theme='light'] .text-emerald-300,
+:root[data-theme='light'] .text-emerald-400,
+:root[data-theme='light'] [class~='text-emerald-200/60'],
+:root[data-theme='light'] [class~='text-emerald-300/45'],
+:root[data-theme='light'] [class~='text-emerald-300/50'],
+:root[data-theme='light'] [class~='text-emerald-300/55'],
+:root[data-theme='light'] [class~='text-emerald-300/60'],
+:root[data-theme='light'] [class~='text-emerald-300/70'],
+:root[data-theme='light'] [class~='text-emerald-300/75'],
+:root[data-theme='light'] [class~='hover:text-emerald-300']:hover {
+  color: #047857 !important;
+}
+
+:root[data-theme='light'] .text-sky-200,
+:root[data-theme='light'] .text-sky-300,
+:root[data-theme='light'] .text-sky-400,
+:root[data-theme='light'] [class~='text-sky-200/70'],
+:root[data-theme='light'] [class~='text-sky-300/50'],
+:root[data-theme='light'] [class~='text-sky-300/55'],
+:root[data-theme='light'] [class~='text-sky-300/60'],
+:root[data-theme='light'] [class~='text-sky-300/70'],
+:root[data-theme='light'] [class~='text-sky-400/70'],
+:root[data-theme='light'] [class~='hover:text-sky-300']:hover {
+  color: #0369a1 !important;
+}
+
+:root[data-theme='light'] .text-violet-200,
+:root[data-theme='light'] .text-violet-300,
+:root[data-theme='light'] .text-violet-400,
+:root[data-theme='light'] [class~='text-violet-100/90'],
+:root[data-theme='light'] [class~='text-violet-200/80'],
+:root[data-theme='light'] [class~='text-violet-300/50'],
+:root[data-theme='light'] [class~='text-violet-300/55'],
+:root[data-theme='light'] [class~='text-violet-300/60'],
+:root[data-theme='light'] [class~='text-violet-300/70'] {
+  color: #6d28d9 !important;
+}
+
+:root[data-theme='light'] .text-cyan-300,
+:root[data-theme='light'] .text-cyan-400 {
+  color: #0e7490 !important;
+}
+
+:root[data-theme='light'] .text-orange-300 {
+  color: #c2410c !important;
+}
+
+:root[data-theme='light'] .border-zinc-950,
+:root[data-theme='light'] .border-zinc-800,
+:root[data-theme='light'] [class~='border-zinc-800/70'],
+:root[data-theme='light'] [class~='border-zinc-800/80'],
+:root[data-theme='light'] .border-zinc-700,
+:root[data-theme='light'] [class~='border-zinc-700/80'],
+:root[data-theme='light'] .border-zinc-600 {
+  border-color: #d7dee9 !important;
+}
+
+:root[data-theme='light'] [class~='border-white/10'],
+:root[data-theme='light'] [class~='border-white/15'],
+:root[data-theme='light'] [class~='border-white/20'],
+:root[data-theme='light'] [class~='border-white/[0.055]'],
+:root[data-theme='light'] [class~='border-white/[0.06]'],
+:root[data-theme='light'] [class~='border-white/[0.07]'],
+:root[data-theme='light'] [class~='border-white/[0.08]'],
+:root[data-theme='light'] [class~='border-white/[0.09]'],
+:root[data-theme='light'] [class~='border-white/[0.12]'],
+:root[data-theme='light'] [class~='border-white/[0.13]'] {
+  border-color: rgba(148, 163, 184, 0.32) !important;
+}
+
+:root[data-theme='light'] [class~='hover:bg-zinc-900']:hover,
+:root[data-theme='light'] [class~='hover:bg-zinc-900/80']:hover,
+:root[data-theme='light'] [class~='hover:bg-zinc-800']:hover,
+:root[data-theme='light'] [class~='hover:bg-zinc-800/25']:hover,
+:root[data-theme='light'] [class~='hover:bg-zinc-800/30']:hover {
+  background-color: #eef2f7 !important;
+}
+
+/* Stateful Tailwind utilities need their own light-theme mapping. Without
+ * these, a hover/disabled state falls back to the original dark Zinc token
+ * and looks like a black frame on an otherwise light card. */
+:root[data-theme='light'] [class~='hover:border-zinc-800']:hover,
+:root[data-theme='light'] [class~='hover:border-zinc-700']:hover,
+:root[data-theme='light'] [class~='hover:border-zinc-700/80']:hover,
+:root[data-theme='light'] [class~='hover:border-zinc-600']:hover {
+  border-color: #b8c4d4 !important;
+}
+
+:root[data-theme='light'] [class~='disabled:border-zinc-800']:disabled,
+:root[data-theme='light'] [class~='disabled:border-zinc-700']:disabled {
+  border-color: #d7dee9 !important;
+}
+
+:root[data-theme='light'] [class~='disabled:bg-zinc-900']:disabled,
+:root[data-theme='light'] [class~='disabled:bg-zinc-800']:disabled {
+  background-color: #eef2f7 !important;
+}
+
+:root[data-theme='light'] [class~='disabled:text-zinc-600']:disabled,
+:root[data-theme='light'] [class~='disabled:text-zinc-700']:disabled {
+  color: #64748b !important;
+}
+
+:root[data-theme='light'] [class~='hover:text-zinc-100']:hover,
+:root[data-theme='light'] [class~='hover:text-zinc-200']:hover,
+:root[data-theme='light'] [class~='hover:text-zinc-300']:hover {
+  color: #0f172a !important;
+}
+
+:root[data-theme='light'] .divide-zinc-800 > :not(:last-child),
+:root[data-theme='light'] [class~='divide-white/[0.055]'] > :not(:last-child),
+:root[data-theme='light'] [class~='divide-white/[0.06]'] > :not(:last-child) {
+  border-color: var(--hy-divider) !important;
+}
+
+/* Keep card depth in light mode without carrying the dark UI's heavy black
+ * shadows across. Modal shadows stay intentionally strong over their overlay. */
+:root[data-theme='light'] [class~='shadow-black/5'],
+:root[data-theme='light'] [class~='shadow-black/10'],
+:root[data-theme='light'] [class~='shadow-black/15'],
+:root[data-theme='light'] [class~='shadow-black/20'],
+:root[data-theme='light'] [class~='shadow-black/25'],
+:root[data-theme='light'] [class~='shadow-black/30'] {
+  --tw-shadow-color: var(--hy-soft-shadow) !important;
+}
+
+:root[data-theme='light'] [class~='hover:bg-white/[0.02]']:hover,
+:root[data-theme='light'] [class~='hover:bg-white/[0.035]']:hover,
+:root[data-theme='light'] [class~='hover:bg-white/[0.04]']:hover,
+:root[data-theme='light'] [class~='hover:bg-white/[0.06]']:hover {
+  background-color: rgba(15, 23, 42, 0.06) !important;
+}
+
+:root[data-theme='light'] [class~='hover:bg-white']:hover {
+  background-color: #ffffff !important;
+}
+
+:root[data-theme='light'] input,
+:root[data-theme='light'] select,
+:root[data-theme='light'] textarea {
+  color-scheme: light;
+}
+
+:root[data-theme='light'] ::selection {
+  background: rgba(245, 158, 11, 0.2);
+  color: #0f172a;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body,
+  button,
+  input,
+  select,
+  textarea,
+  .hy-app-shell,
+  .hy-sidebar,
+  .hy-topbar {
+    transition: none;
+  }
 }

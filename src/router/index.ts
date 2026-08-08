@@ -36,6 +36,22 @@ const router = createRouter({
             import('@/modules/trades/views/TradesView.vue'),
         },
         {
+          path: '/trade-analytics',
+          name: 'trade-analytics',
+          component: () =>
+            import(
+              '@/modules/trades/views/TradeAnalyticsView.vue'
+            ),
+        },
+        {
+          path: '/trading-risk',
+          name: 'trading-risk',
+          component: () =>
+            import(
+              '@/modules/trades/views/TradingRiskView.vue'
+            ),
+        },
+        {
           path: 'playbook',
           name: 'playbook',
           component: () =>
@@ -46,6 +62,14 @@ const router = createRouter({
           name: 'review',
           component: () =>
             import('@/modules/review/views/ReviewView.vue'),
+        },
+        {
+          path: 'ai-coach',
+          name: 'ai-coach',
+          component: () =>
+            import(
+              '@/modules/ai-coach/views/AiCoachView.vue'
+            ),
         },
         {
           path: 'accounts',

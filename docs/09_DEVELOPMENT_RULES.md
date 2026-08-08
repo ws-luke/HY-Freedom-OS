@@ -75,7 +75,7 @@ modules/<feature>/
 During structure and foundation sprints:
 
 - **No business logic** in UI layout components
-- **No API calls** until the API layer is defined
+- External API calls must be isolated in a typed service, normalized before reaching stores, and expose explicit loading, stale-cache, and failure states
 - **No Supabase** until database plan is approved and implemented
 - **No fake statistics or mock data** in the UI
 - **No charts** unless explicitly requested for a sprint
