@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 
 
 APP_NAME = "Freedom MT5 Sync Service"
-APP_VERSION = "1.5.0"
+APP_VERSION = "1.5.1"
 SCHEMA_VERSION = 1
 SYNC_LOCK = threading.Lock()
 CRYPTPROTECT_UI_FORBIDDEN = 0x01
@@ -61,6 +61,7 @@ def _allowed_origins() -> list[str]:
         "http://127.0.0.1:5173",
         "http://localhost:4173",
         "http://127.0.0.1:4173",
+        "https://freedom.9day.tw",
         "https://hy-freedom-os.pages.dev",
     ]
 

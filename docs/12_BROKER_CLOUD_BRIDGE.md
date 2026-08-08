@@ -59,7 +59,7 @@ After pairing, the Windows Agent can continue delivering MT5 payloads even when 
 
 ## Custom domain
 
-The Agent default CORS allow-list includes local development origins and `https://hy-freedom-os.pages.dev`.
+The Agent default CORS allow-list includes local development origins, the production
+`https://freedom.9day.tw` origin, and `https://hy-freedom-os.pages.dev` as a deployment fallback.
 
 If Freedom OS moves to a custom production domain, set `FREEDOM_OS_ALLOWED_ORIGINS` before starting the Agent, using a comma-separated list of trusted origins.
-
