@@ -5,6 +5,7 @@
 !.env.example
 dist
 node_modules
+functions
 *.tsbuildinfo
 *.zip
 mt5-sync-service/.venv
