@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 
 
 APP_NAME = "Freedom MT5 Sync Service"
-APP_VERSION = "1.4.0"
+APP_VERSION = "1.5.0"
 SCHEMA_VERSION = 1
 SYNC_LOCK = threading.Lock()
 CRYPTPROTECT_UI_FORBIDDEN = 0x01
@@ -370,7 +370,7 @@ def _rest_select(path: str, session: dict[str, Any]) -> list[dict[str, Any]]:
     return response if isinstance(response, list) else []
 
 
-def _rest_upsert(path: str, session: dict[str, Any], body: dict[str, Any]) -> None:
+def _rest_upsert(path: str, session: dict[str, Any], body: Any) -> None:
     _cloud_http(
         "POST",
         f"/rest/v1/{path}",
@@ -446,6 +446,102 @@ def _cloud_upsert_channel(
     )
 
 
+def _broker_ledger_snapshot(
+    session: dict[str, Any],
+    cloud_account_id: str,
+) -> tuple[bool, dict[str, Any] | None]:
+    account_id = urllib.parse.quote(cloud_account_id, safe="")
+    try:
+        rows = _rest_select(
+            "broker_account_snapshots?"
+            "select=id,sync_cursor,captured_at&"
+            f"account_id=eq.{account_id}&limit=1",
+            session,
+        )
+        return True, rows[0] if rows else None
+    except RuntimeError as error:
+        message = str(error).lower()
+        if "broker_account_snapshots" in message and (
+            "schema cache" in message or "does not exist" in message or "could not find" in message
+        ):
+            return False, None
+        raise
+
+
+def _store_broker_ledger_payload(
+    session: dict[str, Any],
+    account: dict[str, Any],
+    payload: dict[str, Any],
+) -> None:
+    cloud_account_id = str(account.get("id") or "")
+    local_id = str(account.get("local_id") or "")
+    captured_at = str(payload.get("syncedAt") or _utc_now().isoformat())
+    common = {
+        "user_id": session["userId"],
+        "account_id": cloud_account_id,
+        "local_account_id": local_id,
+        "provider": "mt5",
+    }
+
+    trades = payload.get("trades") if isinstance(payload.get("trades"), list) else []
+    if trades:
+        rows = []
+        for trade in trades:
+            if not isinstance(trade, dict) or not trade.get("externalId"):
+                continue
+            rows.append({
+                **common,
+                "external_id": str(trade["externalId"]),
+                "position_id": str(trade.get("positionId")) if trade.get("positionId") else None,
+                "position_status": str(trade.get("positionStatus") or "closed"),
+                "opened_at": str(trade.get("openedAt") or captured_at),
+                "closed_at": trade.get("closedAt"),
+                "payload": trade,
+                "captured_at": captured_at,
+            })
+        if rows:
+            _rest_upsert(
+                "broker_trade_ledger?on_conflict=user_id,account_id,external_id",
+                session,
+                rows,
+            )
+
+    cashflows = payload.get("cashflows") if isinstance(payload.get("cashflows"), list) else []
+    if cashflows:
+        rows = []
+        for cashflow in cashflows:
+            if not isinstance(cashflow, dict) or not cashflow.get("externalId"):
+                continue
+            rows.append({
+                **common,
+                "external_id": str(cashflow["externalId"]),
+                "occurred_at": str(cashflow.get("occurredAt") or captured_at),
+                "payload": cashflow,
+                "captured_at": captured_at,
+            })
+        if rows:
+            _rest_upsert(
+                "broker_cashflow_ledger?on_conflict=user_id,account_id,external_id",
+                session,
+                rows,
+            )
+
+    _rest_upsert(
+        "broker_account_snapshots?on_conflict=user_id,account_id",
+        session,
+        {
+            **common,
+            "broker_login": str(payload.get("brokerLogin") or account.get("broker_login") or ""),
+            "broker_server": str(payload.get("brokerServer") or account.get("broker_server") or ""),
+            "payload": payload.get("account") if isinstance(payload.get("account"), dict) else {},
+            "sync_cursor": payload.get("cursor"),
+            "captured_at": captured_at,
+            "agent_id": session["agentId"],
+            "agent_version": APP_VERSION,
+        },
+    )
+
+
 def _cloud_publish_account(session: dict[str, Any], account: dict[str, Any]) -> None:
     local_id = str(account.get("local_id") or "")
     cloud_account_id = str(account.get("id") or "")
@@ -454,20 +550,6 @@ def _cloud_publish_account(session: dict[str, Any], account: dict[str, Any]) -> 
     if not local_id or not cloud_account_id or not login or not server:
         return
     channel = _cloud_channel(session, cloud_account_id)
-    if channel and channel.get("payload_cursor") != channel.get("acked_cursor"):
-        channel_id = urllib.parse.quote(str(channel.get("id") or ""), safe="")
-        if channel_id:
-            _rest_patch(
-                f"broker_sync_channels?id=eq.{channel_id}",
-                session,
-                {
-                    "agent_id": session["agentId"],
-                    "agent_version": APP_VERSION,
-                    "agent_last_seen": _utc_now().isoformat(),
-                    "autostart_enabled": _autostart_configured(),
-                },
-            )
-        return
 
     if not _credential_saved(local_id):
         _cloud_upsert_channel(
@@ -497,7 +579,31 @@ def _cloud_publish_account(session: dict[str, Any], account: dict[str, Any]) -> 
             )
         return
 
-    since = str(channel.get("acked_cursor") or "") if channel else ""
+    ledger_available, ledger_snapshot = _broker_ledger_snapshot(session, cloud_account_id)
+
+    # Cloud Bridge v1/v2 fallback: an unacknowledged browser payload is never
+    # overwritten. Event Ledger v1 does not have this limitation because its
+    # own durable cursor advances independently of any browser session.
+    if not ledger_available and channel and channel.get("payload_cursor") != channel.get("acked_cursor"):
+        channel_id = urllib.parse.quote(str(channel.get("id") or ""), safe="")
+        if channel_id:
+            _rest_patch(
+                f"broker_sync_channels?id=eq.{channel_id}",
+                session,
+                {
+                    "agent_id": session["agentId"],
+                    "agent_version": APP_VERSION,
+                    "agent_last_seen": _utc_now().isoformat(),
+                    "autostart_enabled": _autostart_configured(),
+                },
+            )
+        return
+
+    since = (
+        str(ledger_snapshot.get("sync_cursor") or "")
+        if ledger_available and ledger_snapshot
+        else str(channel.get("acked_cursor") or "") if channel else ""
+    )
     sync_started_at = _utc_now().isoformat()
     _cloud_upsert_channel(
         session,
@@ -536,20 +642,35 @@ def _cloud_publish_account(session: dict[str, Any], account: dict[str, Any]) -> 
         raise
 
     completed_at = _utc_now().isoformat()
-    _cloud_upsert_channel(
-        session,
-        account,
-        {
-            "status": "ready",
-            "payload": payload,
-            "payload_cursor": payload.get("cursor"),
-            "last_error": None,
-            "last_sync_completed_at": completed_at,
-            "last_success_at": completed_at,
-            "consecutive_failures": 0,
-            "next_retry_at": None,
-        },
-    )
+    if ledger_available:
+        _store_broker_ledger_payload(session, account, payload)
+        _cloud_upsert_channel(
+            session,
+            account,
+            {
+                "status": "idle",
+                "last_error": None,
+                "last_sync_completed_at": completed_at,
+                "last_success_at": completed_at,
+                "consecutive_failures": 0,
+                "next_retry_at": None,
+            },
+        )
+    else:
+        _cloud_upsert_channel(
+            session,
+            account,
+            {
+                "status": "ready",
+                "payload": payload,
+                "payload_cursor": payload.get("cursor"),
+                "last_error": None,
+                "last_sync_completed_at": completed_at,
+                "last_success_at": completed_at,
+                "consecutive_failures": 0,
+                "next_retry_at": None,
+            },
+        )
 
 
 def _cloud_bridge_cycle() -> None:
@@ -937,6 +1058,7 @@ def health() -> dict[str, Any]:
         "mt5ModuleVersion": getattr(mt5, "__version__", None),
         "credentialProtection": "windows-dpapi" if os.name == "nt" else "unavailable",
         "cloudBridge": "v2",
+        "brokerEventLedger": "v1",
         "backgroundAutostart": _autostart_configured(),
         "cloudPollSeconds": CLOUD_POLL_SECONDS,
     }

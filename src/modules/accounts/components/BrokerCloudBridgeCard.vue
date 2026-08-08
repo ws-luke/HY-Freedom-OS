@@ -11,6 +11,10 @@ import {
   refreshBrokerCloudBridge,
   unpairCloudBridgeAgent,
 } from '@/services/broker-cloud-bridge.service'
+import {
+  brokerEventLedgerRuntime,
+  refreshBrokerEventLedger,
+} from '@/services/broker-event-ledger.service'
 import { getCloudIdentity } from '@/services/cloud/cloud-auth.service'
 import { getMt5SyncHealth, isMt5AgentCompatible, mt5SyncRuntime } from '@/services/mt5-sync-client.service'
 import { useNotificationStore } from '@/stores/useNotificationStore'
@@ -38,9 +42,16 @@ const cloudAgentFresh = computed(() => !isBrokerAgentHeartbeatStale(effectiveHea
 const autostartEnabled = computed(() =>
   mt5SyncRuntime.agentHealth?.backgroundAutostart === true || brokerCloudBridgeRuntime.autostartEnabled,
 )
+const effectiveAgentVersion = computed(() =>
+  mt5SyncRuntime.agentHealth?.version || brokerCloudBridgeRuntime.agentVersion,
+)
+const agentVersionCompatible = computed(() => isMt5AgentCompatible(effectiveAgentVersion.value))
 const bridgeHealthy = computed(() =>
   brokerCloudBridgeRuntime.available &&
   !brokerCloudBridgeRuntime.reliabilityUpgradeRequired &&
+  brokerEventLedgerRuntime.available &&
+  brokerEventLedgerRuntime.snapshots > 0 &&
+  agentVersionCompatible.value &&
   cloudAgentFresh.value &&
   !brokerCloudBridgeRuntime.lastError &&
   !agentError.value,
@@ -49,7 +60,9 @@ const bridgeHealthy = computed(() =>
 const statusLabel = computed(() => {
   if (!brokerCloudBridgeRuntime.available) return 'DATABASE UPGRADE REQUIRED'
   if (brokerCloudBridgeRuntime.reliabilityUpgradeRequired) return 'RELIABILITY V2 UPGRADE REQUIRED'
-  if (mt5SyncRuntime.agentOnline && !isMt5AgentCompatible(mt5SyncRuntime.agentHealth?.version)) return 'AGENT UPDATE REQUIRED'
+  if (!brokerEventLedgerRuntime.available) return 'EVENT LEDGER UPGRADE REQUIRED'
+  if (effectiveAgentVersion.value && !agentVersionCompatible.value) return 'AGENT UPDATE REQUIRED'
+  if (brokerEventLedgerRuntime.snapshots === 0) return 'WAITING LEDGER SNAPSHOT'
   if (bridgeHealthy.value) return 'CLOUD BRIDGE HEALTHY'
   if (cloudAgentSeen.value && !cloudAgentFresh.value) return 'AGENT HEARTBEAT STALE'
   if (mt5SyncRuntime.agentOnline && !localAgentPaired.value) return 'PAIR THIS PC'
@@ -59,7 +72,7 @@ const statusLabel = computed(() => {
 
 const statusClasses = computed(() => {
   if (bridgeHealthy.value) return 'border-emerald-400/20 bg-emerald-400/[0.06] text-emerald-300'
-  if (!brokerCloudBridgeRuntime.available || brokerCloudBridgeRuntime.reliabilityUpgradeRequired) {
+  if (!brokerCloudBridgeRuntime.available || brokerCloudBridgeRuntime.reliabilityUpgradeRequired || !brokerEventLedgerRuntime.available) {
     return 'border-amber-400/20 bg-amber-400/[0.06] text-amber-300'
   }
   if (cloudAgentSeen.value && !cloudAgentFresh.value) {
@@ -106,6 +119,7 @@ const refresh = async (): Promise<void> => {
       getMt5SyncHealth(),
       getCloudBridgeAgentStatus(),
       refreshBrokerCloudBridge(),
+      refreshBrokerEventLedger(),
     ])
     if (identity?.email && !email.value) email.value = identity.email
     if (health && agentStatus) {
@@ -192,13 +206,13 @@ onBeforeUnmount(() => {
         </div>
         <div>
           <div class="flex flex-wrap items-center gap-2">
-            <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-300/55">Freedom Sync Reliability v2</p>
+            <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-300/55">Freedom Broker Event Ledger v1</p>
             <span class="rounded-full border px-2 py-0.5 text-[9px] font-semibold tracking-wide" :class="statusClasses">
               {{ statusLabel }}
             </span>
           </div>
           <h2 class="mt-1 text-base font-semibold text-zinc-100">MT5 → Freedom Cloud</h2>
-          <p class="mt-1 text-xs text-zinc-600">背景自啟、心跳監控、失敗自動重試與多帳戶健康狀態。</p>
+          <p class="mt-1 text-xs text-zinc-600">MT5 原始交易 24/7 持續進雲端；Freedom OS 打開後直接生成可復盤 Journal。</p>
         </div>
       </div>
 
@@ -234,8 +248,11 @@ onBeforeUnmount(() => {
         <p class="mt-1 text-[9px] text-zinc-700">Windows 登入後自動啟動</p>
       </div>
       <div class="p-4 sm:px-5">
-        <p class="text-[10px] uppercase tracking-[0.12em] text-zinc-700">Pending Payload</p>
-        <p class="mt-1.5 text-sm font-semibold text-sky-300">{{ brokerCloudBridgeRuntime.readyCount }} 個</p>
+        <p class="text-[10px] uppercase tracking-[0.12em] text-zinc-700">24/7 Event Ledger</p>
+        <p class="mt-1.5 text-sm font-semibold" :class="brokerEventLedgerRuntime.available ? 'text-violet-300' : 'text-amber-300'">
+          {{ brokerEventLedgerRuntime.available ? brokerEventLedgerRuntime.snapshots > 0 ? 'ACTIVE' : 'WAITING AGENT' : 'MIGRATION NEEDED' }}
+        </p>
+        <p class="mt-1 text-[9px] text-zinc-700">{{ brokerEventLedgerRuntime.snapshots }} 個帳戶快照</p>
       </div>
     </div>
 
@@ -244,6 +261,9 @@ onBeforeUnmount(() => {
     </div>
     <div v-else-if="brokerCloudBridgeRuntime.reliabilityUpgradeRequired" class="border-b border-amber-400/10 bg-amber-400/[0.035] px-5 py-3.5 text-xs leading-5 text-amber-200/75 sm:px-6">
       Reliability v2 等待資料庫升級。執行 202608080004_sync_reliability_v2.sql 後，會啟用每帳戶 Heartbeat、失敗重試與背景自啟監控。
+    </div>
+    <div v-else-if="!brokerEventLedgerRuntime.available" class="border-b border-amber-400/10 bg-amber-400/[0.035] px-5 py-3.5 text-xs leading-5 text-amber-200/75 sm:px-6">
+      Broker Event Ledger 等待資料庫升級。執行 202608080005_broker_event_ledger_v1.sql 後，MT5 Agent 就能在 Freedom OS 關閉時持續保存交易原始資料。
     </div>
 
     <div v-if="mt5Accounts.length && !brokerCloudBridgeRuntime.reliabilityUpgradeRequired" class="border-b border-white/[0.06]">
@@ -312,8 +332,7 @@ onBeforeUnmount(() => {
     </div>
 
     <footer class="border-t border-white/[0.06] px-5 py-3.5 text-[10px] leading-5 text-zinc-700 sm:px-6">
-      AUTO RECOVERY · 20s heartbeat · exponential retry · Windows background autostart · DPAPI · Local Sync fallback preserved
+      24/7 LEDGER · independent broker cursor · idempotent upsert · RLS · DPAPI · Reliability v2 fallback preserved
     </footer>
   </section>
 </template>
-

@@ -11,7 +11,7 @@ const MT5_SYNC_BASE_URL = (
   import.meta.env.VITE_MT5_SYNC_URL || 'http://127.0.0.1:8765'
 ).replace(/\/$/, '')
 
-export const MT5_SYNC_MIN_AGENT_VERSION = '1.4.0'
+export const MT5_SYNC_MIN_AGENT_VERSION = '1.5.0'
 
 export interface Mt5AgentHealth {
   ok: boolean
@@ -20,6 +20,7 @@ export interface Mt5AgentHealth {
   mt5ModuleVersion: string | null
   credentialProtection: string | null
   cloudBridge: string | null
+  brokerEventLedger: string | null
   backgroundAutostart: boolean
   cloudPollSeconds: number | null
 }
@@ -107,6 +108,7 @@ export const getMt5SyncHealth = async (): Promise<Mt5AgentHealth | null> => {
       mt5ModuleVersion: typeof data.mt5ModuleVersion === 'string' ? data.mt5ModuleVersion : null,
       credentialProtection: typeof data.credentialProtection === 'string' ? data.credentialProtection : null,
       cloudBridge: typeof data.cloudBridge === 'string' ? data.cloudBridge : null,
+      brokerEventLedger: typeof data.brokerEventLedger === 'string' ? data.brokerEventLedger : null,
       backgroundAutostart: data.backgroundAutostart === true,
       cloudPollSeconds: typeof data.cloudPollSeconds === 'number' ? data.cloudPollSeconds : null,
     }

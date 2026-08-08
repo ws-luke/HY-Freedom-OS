@@ -1,4 +1,4 @@
-const CACHE_NAME = 'freedom-os-app-shell-v4'
+const CACHE_NAME = 'freedom-os-app-shell-v5'
 const APP_SHELL = [
   '/',
   '/manifest.webmanifest',

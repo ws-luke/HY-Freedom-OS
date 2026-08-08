@@ -7,6 +7,7 @@ import { usePlaybookPerformanceSync } from '@/composables/usePlaybookPerformance
 import { useTradingRiskSync } from '@/composables/useTradingRiskSync'
 import { startBrokerAutoSync } from '@/services/broker-auto-sync.service'
 import { startBrokerCloudBridge } from '@/services/broker-cloud-bridge.service'
+import { startBrokerEventLedger } from '@/services/broker-event-ledger.service'
 import { startCloudAutoSync } from '@/services/cloud/cloud-auto-sync.service'
 
 usePlaybookPerformanceSync()
@@ -15,15 +16,18 @@ useTradingRiskSync()
 let stopCloudSync: (() => void) | null = null
 let stopBrokerSync: (() => void) | null = null
 let stopBrokerCloudBridge: (() => void) | null = null
+let stopBrokerEventLedger: (() => void) | null = null
 
 onMounted(() => {
   stopCloudSync = startCloudAutoSync()
   stopBrokerCloudBridge = startBrokerCloudBridge()
+  stopBrokerEventLedger = startBrokerEventLedger()
   stopBrokerSync = startBrokerAutoSync()
 })
 
 onUnmounted(() => {
   stopBrokerSync?.()
+  stopBrokerEventLedger?.()
   stopBrokerCloudBridge?.()
   stopCloudSync?.()
 })
