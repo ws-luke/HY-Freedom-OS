@@ -10,11 +10,11 @@ const FREEDOM_CLOUD_URL = 'https://nyicsabadgpzpgudatin.supabase.co'
 const FREEDOM_CLOUD_PUBLISHABLE_KEY = 'sb_publishable_ZPSCOxPfXOy2g2Qa6P6Hew_33_V3lCT'
 
 const supabaseUrl = (
-  import.meta.env.VITE_SUPABASE_URL ?? FREEDOM_CLOUD_URL
+  import.meta.env.VITE_SUPABASE_URL || FREEDOM_CLOUD_URL
 ).trim()
 const supabasePublishableKey = (
-  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ??
-  import.meta.env.VITE_SUPABASE_ANON_KEY ??
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+  import.meta.env.VITE_SUPABASE_ANON_KEY ||
   FREEDOM_CLOUD_PUBLISHABLE_KEY
 ).trim()
 

@@ -1,10 +1,17 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
 import MainLayout from '@/layouts/MainLayout.vue'
+import { getCloudSession } from '@/services/cloud/cloud-auth.service'
+import { isCloudAuthRequired } from '@/services/runtime-mode.service'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
+    {
+      path: '/login',
+      name: 'login',
+      component: () => import('@/modules/auth/views/LoginView.vue'),
+    },
     {
       path: '/',
       component: MainLayout,
@@ -102,6 +109,22 @@ const router = createRouter({
       redirect: '/',
     },
   ],
+})
+
+router.beforeEach(async to => {
+  if (!isCloudAuthRequired()) {
+    return to.name === 'login' ? { name: 'mission-control' } : true
+  }
+
+  let session = null
+  try { session = await getCloudSession() }
+  catch { session = null }
+
+  if (to.name === 'login') return session ? { name: 'mission-control' } : true
+  if (!session) {
+    return { name: 'login', query: { redirect: to.fullPath } }
+  }
+  return true
 })
 
 export default router

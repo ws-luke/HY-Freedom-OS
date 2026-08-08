@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "run-p type-check \"build-only {@}\" --",
-    "preview": "vite preview",
+    "preview": "npm run build && node server/index.mjs",
+    "start": "node server/index.mjs",
     "build-only": "vite build",
     "type-check": "vue-tsc --build"
   },

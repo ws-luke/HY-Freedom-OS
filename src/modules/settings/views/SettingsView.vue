@@ -7,6 +7,8 @@ import DataVaultCard from '../components/DataVaultCard.vue'
 import CloudFoundationCard from '../components/CloudFoundationCard.vue'
 import CloudAccountCard from '../components/CloudAccountCard.vue'
 import CloudProductionHealthCard from '../components/CloudProductionHealthCard.vue'
+import PwaInstallCard from '../components/PwaInstallCard.vue'
+import ProductionRuntimeCard from '../components/ProductionRuntimeCard.vue'
 import { useTradeStore } from '@/stores/useTradeStore'
 import { useNotificationStore } from '@/stores/useNotificationStore'
 import { useThemeStore } from '@/stores/useThemeStore'
@@ -171,6 +173,10 @@ notificationStore.addNotification({
     <CloudAccountCard />
 
     <CloudProductionHealthCard />
+
+    <PwaInstallCard />
+
+    <ProductionRuntimeCard />
 
     <DataVaultCard />
 

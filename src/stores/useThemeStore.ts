@@ -37,6 +37,12 @@ export const useThemeStore = defineStore('theme', () => {
 
     document.documentElement.dataset.theme = theme.value
     document.documentElement.style.colorScheme = theme.value
+
+    const themeColor = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+    themeColor?.setAttribute(
+      'content',
+      theme.value === 'light' ? '#f4f4f5' : '#09090b',
+    )
   }
 
   const initialize = (): void => {

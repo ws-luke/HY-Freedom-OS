@@ -61,6 +61,11 @@ textarea,
     color 180ms ease;
 }
 
+.hy-mobile-nav {
+  border-color: var(--hy-border);
+  background: color-mix(in srgb, var(--hy-topbar) 94%, transparent);
+}
+
 .hy-app-shell {
   background: var(--hy-app-bg);
   color: var(--hy-text);

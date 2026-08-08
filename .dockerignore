@@ -1,0 +1,12 @@
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+dist
+node_modules
+*.tsbuildinfo
+*.zip
+mt5-sync-service/.venv
+mt5-sync-service/__pycache__
+mt5-sync-service/*.pyc

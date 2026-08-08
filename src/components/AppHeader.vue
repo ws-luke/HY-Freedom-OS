@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 
 import NotificationCenter from '@/components/NotificationCenter.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
+import PwaActionButton from '@/components/PwaActionButton.vue'
 
 const route = useRoute()
 
@@ -71,6 +72,8 @@ const formattedDate = computed(() =>
         </div>
 
         <ThemeToggle />
+
+        <PwaActionButton />
 
         <NotificationCenter />
       </div>
