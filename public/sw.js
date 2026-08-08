@@ -1,8 +1,10 @@
-const CACHE_NAME = 'freedom-os-app-shell-v5'
+const CACHE_NAME = 'freedom-os-app-shell-v6'
 const APP_SHELL = [
   '/',
   '/manifest.webmanifest',
+  '/freedom-os-icon.svg',
   '/favicon.ico',
+  '/apple-touch-icon.png',
   '/pwa-192.png',
   '/pwa-512.png',
   '/pwa-maskable-512.png',
