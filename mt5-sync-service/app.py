@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 
 
 APP_NAME = "Freedom MT5 Sync Service"
-APP_VERSION = "1.3.0"
+APP_VERSION = "1.4.0"
 SCHEMA_VERSION = 1
 SYNC_LOCK = threading.Lock()
 CRYPTPROTECT_UI_FORBIDDEN = 0x01
@@ -35,6 +35,7 @@ FREEDOM_CLOUD_PUBLISHABLE_KEY = os.getenv(
     "sb_publishable_ZPSCOxPfXOy2g2Qa6P6Hew_33_V3lCT",
 )
 CLOUD_POLL_SECONDS = max(10, int(os.getenv("FREEDOM_CLOUD_POLL_SECONDS", "20")))
+CLOUD_RETRY_MAX_SECONDS = 300
 CLOUD_STOP_EVENT = threading.Event()
 CLOUD_STATE_LOCK = threading.Lock()
 CLOUD_RUNTIME: dict[str, Any] = {
@@ -111,6 +112,26 @@ def _freedom_directory() -> Path:
 
 def _cloud_session_path() -> Path:
     return _freedom_directory() / "cloud-session.bin"
+
+
+def _autostart_shortcut_path() -> Path | None:
+    app_data = os.getenv("APPDATA", "").strip()
+    if not app_data:
+        return None
+    return (
+        Path(app_data)
+        / "Microsoft"
+        / "Windows"
+        / "Start Menu"
+        / "Programs"
+        / "Startup"
+        / "Freedom-MT5-Sync.lnk"
+    )
+
+
+def _autostart_configured() -> bool:
+    shortcut = _autostart_shortcut_path()
+    return bool(shortcut and shortcut.exists())
 
 
 def _dpapi_protect(value: bytes) -> bytes:
@@ -381,10 +402,48 @@ def _cloud_accounts(session: dict[str, Any]) -> list[dict[str, Any]]:
 def _cloud_channel(session: dict[str, Any], cloud_account_id: str) -> dict[str, Any] | None:
     account_id = urllib.parse.quote(cloud_account_id, safe="")
     rows = _rest_select(
-        f"broker_sync_channels?select=id,status,payload_cursor,acked_cursor&account_id=eq.{account_id}&limit=1",
+        "broker_sync_channels?"
+        "select=id,status,payload_cursor,acked_cursor,consecutive_failures,next_retry_at&"
+        f"account_id=eq.{account_id}&limit=1",
         session,
     )
     return rows[0] if rows else None
+
+
+def _parse_cloud_timestamp(value: Any) -> datetime | None:
+    if not value or not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+    except ValueError:
+        return None
+
+
+def _cloud_channel_base(session: dict[str, Any], account: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "user_id": session["userId"],
+        "account_id": str(account.get("id") or ""),
+        "local_account_id": str(account.get("local_id") or ""),
+        "agent_id": session["agentId"],
+        "agent_version": APP_VERSION,
+        "agent_last_seen": _utc_now().isoformat(),
+        "autostart_enabled": _autostart_configured(),
+    }
+
+
+def _cloud_upsert_channel(
+    session: dict[str, Any],
+    account: dict[str, Any],
+    updates: dict[str, Any],
+) -> None:
+    _rest_upsert(
+        "broker_sync_channels?on_conflict=user_id,account_id",
+        session,
+        {**_cloud_channel_base(session, account), **updates},
+    )
 
 
 def _cloud_publish_account(session: dict[str, Any], account: dict[str, Any]) -> None:
@@ -394,9 +453,6 @@ def _cloud_publish_account(session: dict[str, Any], account: dict[str, Any]) -> 
     server = str(account.get("broker_server") or "").strip()
     if not local_id or not cloud_account_id or not login or not server:
         return
-    if not _credential_saved(local_id):
-        return
-
     channel = _cloud_channel(session, cloud_account_id)
     if channel and channel.get("payload_cursor") != channel.get("acked_cursor"):
         channel_id = urllib.parse.quote(str(channel.get("id") or ""), safe="")
@@ -408,33 +464,90 @@ def _cloud_publish_account(session: dict[str, Any], account: dict[str, Any]) -> 
                     "agent_id": session["agentId"],
                     "agent_version": APP_VERSION,
                     "agent_last_seen": _utc_now().isoformat(),
+                    "autostart_enabled": _autostart_configured(),
+                },
+            )
+        return
+
+    if not _credential_saved(local_id):
+        _cloud_upsert_channel(
+            session,
+            account,
+            {
+                "status": "error",
+                "last_error": "Windows 尚未保存此帳戶的 MT5 Read-only Credential。",
+                "next_retry_at": None,
+            },
+        )
+        return
+
+    next_retry_at = _parse_cloud_timestamp(channel.get("next_retry_at")) if channel else None
+    if next_retry_at and next_retry_at > _utc_now():
+        channel_id = urllib.parse.quote(str(channel.get("id") or ""), safe="")
+        if channel_id:
+            _rest_patch(
+                f"broker_sync_channels?id=eq.{channel_id}",
+                session,
+                {
+                    "agent_id": session["agentId"],
+                    "agent_version": APP_VERSION,
+                    "agent_last_seen": _utc_now().isoformat(),
+                    "autostart_enabled": _autostart_configured(),
                 },
             )
         return
 
     since = str(channel.get("acked_cursor") or "") if channel else ""
-    payload = _sync(SyncRequest(
-        accountId=local_id,
-        login=login,
-        server=server,
-        password=None,
-        rememberPassword=False,
-        since=since or None,
-    ))
-    now = _utc_now().isoformat()
-    _rest_upsert(
-        "broker_sync_channels?on_conflict=user_id,account_id",
+    sync_started_at = _utc_now().isoformat()
+    _cloud_upsert_channel(
         session,
+        account,
         {
-            "user_id": session["userId"],
-            "account_id": cloud_account_id,
-            "agent_id": session["agentId"],
-            "agent_version": APP_VERSION,
+            "status": "syncing",
+            "last_sync_started_at": sync_started_at,
+            "last_error": None,
+        },
+    )
+
+    try:
+        payload = _sync(SyncRequest(
+            accountId=local_id,
+            login=login,
+            server=server,
+            password=None,
+            rememberPassword=False,
+            since=since or None,
+        ))
+    except Exception as error:
+        failures = int(channel.get("consecutive_failures") or 0) + 1 if channel else 1
+        retry_seconds = min(CLOUD_RETRY_MAX_SECONDS, CLOUD_POLL_SECONDS * (2 ** min(failures - 1, 4)))
+        failed_at = _utc_now()
+        _cloud_upsert_channel(
+            session,
+            account,
+            {
+                "status": "error",
+                "last_sync_completed_at": failed_at.isoformat(),
+                "consecutive_failures": failures,
+                "next_retry_at": (failed_at + timedelta(seconds=retry_seconds)).isoformat(),
+                "last_error": str(error)[:220],
+            },
+        )
+        raise
+
+    completed_at = _utc_now().isoformat()
+    _cloud_upsert_channel(
+        session,
+        account,
+        {
             "status": "ready",
             "payload": payload,
             "payload_cursor": payload.get("cursor"),
             "last_error": None,
-            "agent_last_seen": now,
+            "last_sync_completed_at": completed_at,
+            "last_success_at": completed_at,
+            "consecutive_failures": 0,
+            "next_retry_at": None,
         },
     )
 
@@ -823,7 +936,9 @@ def health() -> dict[str, Any]:
         "version": APP_VERSION,
         "mt5ModuleVersion": getattr(mt5, "__version__", None),
         "credentialProtection": "windows-dpapi" if os.name == "nt" else "unavailable",
-        "cloudBridge": "v1",
+        "cloudBridge": "v2",
+        "backgroundAutostart": _autostart_configured(),
+        "cloudPollSeconds": CLOUD_POLL_SECONDS,
     }
 
 

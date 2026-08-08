@@ -597,7 +597,10 @@ watch(
       </div>
     </section>
 
-    <BrokerCloudBridgeCard v-if="sortedAccounts.some(account => account.dataSource === 'mt5')" />
+    <BrokerCloudBridgeCard
+      v-if="sortedAccounts.some(account => account.dataSource === 'mt5')"
+      :accounts="sortedAccounts"
+    />
 
     <BrokerSyncCenter
       v-if="sortedAccounts.length"

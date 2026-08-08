@@ -18,7 +18,26 @@ interface BrokerBridgeRow {
   acked_cursor: string | null
   last_error: string | null
   agent_last_seen: string | null
+  local_account_id?: string
+  last_sync_started_at?: string | null
+  last_sync_completed_at?: string | null
+  last_success_at?: string | null
+  next_retry_at?: string | null
+  consecutive_failures?: number
+  autostart_enabled?: boolean
   updated_at: string
+}
+
+export interface BrokerBridgeAccountRuntime {
+  accountId: string
+  status: BrokerBridgeRow['status']
+  lastSuccessAt: string | null
+  lastHeartbeatAt: string | null
+  nextRetryAt: string | null
+  consecutiveFailures: number
+  lastError: string | null
+  pending: boolean
+  autostartEnabled: boolean
 }
 
 export interface CloudBridgeAgentStatus {
@@ -31,6 +50,7 @@ export interface CloudBridgeAgentStatus {
 
 export const brokerCloudBridgeRuntime = reactive({
   available: false,
+  reliabilityUpgradeRequired: false,
   running: false,
   lastCheckedAt: null as string | null,
   lastImportedAt: null as string | null,
@@ -38,7 +58,17 @@ export const brokerCloudBridgeRuntime = reactive({
   readyCount: 0,
   agentLastSeen: null as string | null,
   agentVersion: null as string | null,
+  autostartEnabled: false,
+  accountStates: {} as Record<string, BrokerBridgeAccountRuntime>,
 })
+
+export const BROKER_AGENT_STALE_MS = 90_000
+
+export const isBrokerAgentHeartbeatStale = (value: string | null): boolean => {
+  if (!value) return true
+  const timestamp = new Date(value).getTime()
+  return Number.isNaN(timestamp) || Date.now() - timestamp > BROKER_AGENT_STALE_MS
+}
 
 let started = false
 let timer: number | null = null
@@ -106,12 +136,26 @@ const importReadyPayloads = async (): Promise<void> => {
   activeRun = (async () => {
     brokerCloudBridgeRuntime.running = true
     try {
-      const { data, error } = await supabase
+      const v2 = await supabase
         .from('broker_sync_channels')
-        .select('id,account_id,agent_id,agent_version,status,payload,payload_cursor,acked_cursor,last_error,agent_last_seen,updated_at')
+        .select('id,account_id,agent_id,agent_version,status,payload,payload_cursor,acked_cursor,last_error,agent_last_seen,local_account_id,last_sync_started_at,last_sync_completed_at,last_success_at,next_retry_at,consecutive_failures,autostart_enabled,updated_at')
         .order('updated_at', { ascending: false })
 
       brokerCloudBridgeRuntime.lastCheckedAt = new Date().toISOString()
+      let data = v2.data
+      let error = v2.error
+      let reliabilityV2 = !error
+
+      if (error?.code === '42703') {
+        const legacy = await supabase
+          .from('broker_sync_channels')
+          .select('id,account_id,agent_id,agent_version,status,payload,payload_cursor,acked_cursor,last_error,agent_last_seen,updated_at')
+          .order('updated_at', { ascending: false })
+        data = legacy.data as typeof data
+        error = legacy.error
+        reliabilityV2 = false
+      }
+
       if (error) {
         // 42P01 means the optional bridge migration has not been installed yet.
         brokerCloudBridgeRuntime.available = error.code !== '42P01'
@@ -120,6 +164,7 @@ const importReadyPayloads = async (): Promise<void> => {
       }
 
       brokerCloudBridgeRuntime.available = true
+      brokerCloudBridgeRuntime.reliabilityUpgradeRequired = !reliabilityV2
       brokerCloudBridgeRuntime.lastError = null
       const rows = (data ?? []) as BrokerBridgeRow[]
       brokerCloudBridgeRuntime.readyCount = rows.filter(row =>
@@ -129,6 +174,29 @@ const importReadyPayloads = async (): Promise<void> => {
       const newestAgent = rows.find(row => row.agent_last_seen)
       brokerCloudBridgeRuntime.agentLastSeen = newestAgent?.agent_last_seen ?? null
       brokerCloudBridgeRuntime.agentVersion = newestAgent?.agent_version || null
+      brokerCloudBridgeRuntime.autostartEnabled = rows.some(row => row.autostart_enabled === true)
+      brokerCloudBridgeRuntime.accountStates = Object.fromEntries(
+        rows
+          .map(row => {
+            const payloadAccountId = row.payload && typeof row.payload === 'object' && 'accountId' in row.payload
+              ? String((row.payload as { accountId?: unknown }).accountId ?? '')
+              : ''
+            const accountId = row.local_account_id || payloadAccountId
+            if (!accountId) return null
+            return [accountId, {
+              accountId,
+              status: row.status,
+              lastSuccessAt: row.last_success_at ?? null,
+              lastHeartbeatAt: row.agent_last_seen,
+              nextRetryAt: row.next_retry_at ?? null,
+              consecutiveFailures: row.consecutive_failures ?? 0,
+              lastError: row.last_error,
+              pending: Boolean(row.payload_cursor) && row.payload_cursor !== row.acked_cursor,
+              autostartEnabled: row.autostart_enabled === true,
+            } satisfies BrokerBridgeAccountRuntime] as const
+          })
+          .filter((entry): entry is readonly [string, BrokerBridgeAccountRuntime] => entry !== null),
+      )
 
       for (const row of rows) {
         if (!row.payload || !row.payload_cursor || row.payload_cursor === row.acked_cursor) continue
@@ -190,4 +258,3 @@ export const stopBrokerCloudBridge = (): void => {
 }
 
 export const refreshBrokerCloudBridge = importReadyPayloads
-

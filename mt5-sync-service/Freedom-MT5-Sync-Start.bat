@@ -8,8 +8,9 @@ if not exist ".venv\Scripts\python.exe" (
 )
 title Freedom MT5 Sync Service
 echo Freedom MT5 Sync Service running on this PC...
-echo Multi-Account Agent + Freedom Cloud Bridge v1 enabled.
-echo Keep this window open while you want automatic MT5 cloud synchronization.
+echo Multi-Account Agent + Freedom Sync Reliability v2 enabled.
+echo This foreground window is for diagnostics and manual fallback.
+echo Windows background autostart is available from the included installer.
 echo Saved Read-only credentials are protected by your Windows account (DPAPI).
 echo Freedom Cloud session is also protected by Windows DPAPI.
 echo.
