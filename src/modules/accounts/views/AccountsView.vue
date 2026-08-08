@@ -6,6 +6,7 @@ import AccountFormModal from '../components/AccountFormModal.vue'
 import AccountIcon from '../components/AccountIcon.vue'
 import AccountLedgerTable from '../components/AccountLedgerTable.vue'
 import AccountPerformanceCard from '../components/AccountPerformanceCard.vue'
+import BrokerCloudBridgeCard from '../components/BrokerCloudBridgeCard.vue'
 import BrokerSyncCenter from '../components/BrokerSyncCenter.vue'
 import Mt5SyncModal from '../components/Mt5SyncModal.vue'
 import TransactionFormModal from '../components/TransactionFormModal.vue'
@@ -595,6 +596,8 @@ watch(
         </span>
       </div>
     </section>
+
+    <BrokerCloudBridgeCard v-if="sortedAccounts.some(account => account.dataSource === 'mt5')" />
 
     <BrokerSyncCenter
       v-if="sortedAccounts.length"

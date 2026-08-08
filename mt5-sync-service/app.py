@@ -5,6 +5,11 @@ import hashlib
 import json
 import os
 import threading
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+import uuid
 from ctypes import wintypes
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -17,10 +22,25 @@ from pydantic import BaseModel, Field
 
 
 APP_NAME = "Freedom MT5 Sync Service"
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.3.0"
 SCHEMA_VERSION = 1
 SYNC_LOCK = threading.Lock()
 CRYPTPROTECT_UI_FORBIDDEN = 0x01
+FREEDOM_CLOUD_URL = os.getenv(
+    "FREEDOM_CLOUD_URL",
+    "https://nyicsabadgpzpgudatin.supabase.co",
+).rstrip("/")
+FREEDOM_CLOUD_PUBLISHABLE_KEY = os.getenv(
+    "FREEDOM_CLOUD_PUBLISHABLE_KEY",
+    "sb_publishable_ZPSCOxPfXOy2g2Qa6P6Hew_33_V3lCT",
+)
+CLOUD_POLL_SECONDS = max(10, int(os.getenv("FREEDOM_CLOUD_POLL_SECONDS", "20")))
+CLOUD_STOP_EVENT = threading.Event()
+CLOUD_STATE_LOCK = threading.Lock()
+CLOUD_RUNTIME: dict[str, Any] = {
+    "lastCycleAt": None,
+    "lastError": None,
+}
 
 
 class _DataBlob(ctypes.Structure):
@@ -40,6 +60,7 @@ def _allowed_origins() -> list[str]:
         "http://127.0.0.1:5173",
         "http://localhost:4173",
         "http://127.0.0.1:4173",
+        "https://hy-freedom-os.pages.dev",
     ]
 
 
@@ -62,6 +83,11 @@ class SyncRequest(BaseModel):
     since: str | None = None
 
 
+class CloudPairRequest(BaseModel):
+    email: str = Field(min_length=3)
+    password: str = Field(min_length=1)
+
+
 def _credential_directory() -> Path:
     local_app_data = os.getenv("LOCALAPPDATA", "").strip()
     if not local_app_data:
@@ -74,6 +100,17 @@ def _credential_path(account_id: str) -> Path:
     # vault opaque if somebody casually browses the directory.
     digest = hashlib.sha256(account_id.encode("utf-8")).hexdigest()
     return _credential_directory() / f"{digest}.bin"
+
+
+def _freedom_directory() -> Path:
+    local_app_data = os.getenv("LOCALAPPDATA", "").strip()
+    if not local_app_data:
+        raise RuntimeError("Windows LOCALAPPDATA 無法使用，不能安全保存 Freedom Cloud Session。")
+    return Path(local_app_data) / "FreedomOS"
+
+
+def _cloud_session_path() -> Path:
+    return _freedom_directory() / "cloud-session.bin"
 
 
 def _dpapi_protect(value: bytes) -> bytes:
@@ -175,6 +212,271 @@ def _delete_credential(account_id: str) -> None:
         target.unlink(missing_ok=True)
     except OSError as error:
         raise RuntimeError("無法移除 Windows 保存的 MT5 credential。") from error
+
+
+def _save_cloud_session(payload: dict[str, Any]) -> None:
+    encrypted = _dpapi_protect(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
+    target = _cloud_session_path()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_suffix(".tmp")
+    temporary.write_bytes(encrypted)
+    os.replace(temporary, target)
+
+
+def _load_cloud_session() -> dict[str, Any] | None:
+    target = _cloud_session_path()
+    if not target.exists():
+        return None
+    try:
+        payload = json.loads(_dpapi_unprotect(target.read_bytes()).decode("utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, RuntimeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    if not payload.get("accessToken") or not payload.get("refreshToken") or not payload.get("userId"):
+        return None
+    return payload
+
+
+def _delete_cloud_session() -> None:
+    try:
+        _cloud_session_path().unlink(missing_ok=True)
+    except OSError as error:
+        raise RuntimeError("無法移除 Windows 保存的 Freedom Cloud Session。") from error
+
+
+def _cloud_http(
+    method: str,
+    path: str,
+    *,
+    token: str | None = None,
+    body: Any = None,
+    prefer: str | None = None,
+) -> Any:
+    headers = {
+        "apikey": FREEDOM_CLOUD_PUBLISHABLE_KEY,
+        "Accept": "application/json",
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+    if prefer:
+        headers["Prefer"] = prefer
+
+    data = None if body is None else json.dumps(body, ensure_ascii=False).encode("utf-8")
+    request = urllib.request.Request(
+        f"{FREEDOM_CLOUD_URL}{path}",
+        data=data,
+        headers=headers,
+        method=method,
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            raw = response.read().decode("utf-8")
+            return json.loads(raw) if raw else None
+    except urllib.error.HTTPError as error:
+        try:
+            raw_error = error.read().decode("utf-8")
+            parsed = json.loads(raw_error)
+            message = parsed.get("msg") or parsed.get("message") or parsed.get("error_description")
+        except (UnicodeDecodeError, json.JSONDecodeError, AttributeError):
+            message = None
+        safe_message = str(message)[:240] if message else f"HTTP {error.code}"
+        raise RuntimeError(f"Freedom Cloud request failed: {safe_message}") from error
+    except (urllib.error.URLError, TimeoutError) as error:
+        raise RuntimeError("Freedom Cloud 暫時無法連線。") from error
+
+
+def _cloud_sign_in(email: str, password: str) -> dict[str, Any]:
+    response = _cloud_http(
+        "POST",
+        "/auth/v1/token?grant_type=password",
+        body={"email": email.strip(), "password": password},
+    )
+    if not isinstance(response, dict):
+        raise RuntimeError("Freedom Cloud 登入回應無效。")
+    user = response.get("user") or {}
+    access_token = response.get("access_token")
+    refresh_token = response.get("refresh_token")
+    user_id = user.get("id") if isinstance(user, dict) else None
+    if not access_token or not refresh_token or not user_id:
+        raise RuntimeError("Freedom Cloud 登入未取得有效 Session。")
+
+    now = int(time.time())
+    expires_at = int(response.get("expires_at") or (now + int(response.get("expires_in") or 3600)))
+    session = {
+        "accessToken": access_token,
+        "refreshToken": refresh_token,
+        "expiresAt": expires_at,
+        "userId": str(user_id),
+        "userEmail": str(user.get("email") or email.strip()),
+        "agentId": str(uuid.uuid4()),
+    }
+    _save_cloud_session(session)
+    return session
+
+
+def _cloud_access_session() -> dict[str, Any]:
+    session = _load_cloud_session()
+    if not session:
+        raise RuntimeError("Freedom Cloud 尚未配對。")
+
+    expires_at = int(session.get("expiresAt") or 0)
+    if expires_at > int(time.time()) + 90:
+        return session
+
+    response = _cloud_http(
+        "POST",
+        "/auth/v1/token?grant_type=refresh_token",
+        body={"refresh_token": session["refreshToken"]},
+    )
+    if not isinstance(response, dict) or not response.get("access_token") or not response.get("refresh_token"):
+        raise RuntimeError("Freedom Cloud Session 已失效，請重新配對。")
+
+    session["accessToken"] = response["access_token"]
+    session["refreshToken"] = response["refresh_token"]
+    session["expiresAt"] = int(
+        response.get("expires_at")
+        or (int(time.time()) + int(response.get("expires_in") or 3600))
+    )
+    _save_cloud_session(session)
+    return session
+
+
+def _rest_select(path: str, session: dict[str, Any]) -> list[dict[str, Any]]:
+    response = _cloud_http("GET", f"/rest/v1/{path}", token=session["accessToken"])
+    return response if isinstance(response, list) else []
+
+
+def _rest_upsert(path: str, session: dict[str, Any], body: dict[str, Any]) -> None:
+    _cloud_http(
+        "POST",
+        f"/rest/v1/{path}",
+        token=session["accessToken"],
+        body=body,
+        prefer="resolution=merge-duplicates,return=minimal",
+    )
+
+
+def _rest_patch(path: str, session: dict[str, Any], body: dict[str, Any]) -> None:
+    _cloud_http(
+        "PATCH",
+        f"/rest/v1/{path}",
+        token=session["accessToken"],
+        body=body,
+        prefer="return=minimal",
+    )
+
+
+def _cloud_accounts(session: dict[str, Any]) -> list[dict[str, Any]]:
+    query = (
+        "trading_accounts?"
+        "select=id,local_id,name,broker_login,broker_server,status,data_source&"
+        "data_source=eq.mt5&status=neq.closed&order=updated_at.asc"
+    )
+    return _rest_select(query, session)
+
+
+def _cloud_channel(session: dict[str, Any], cloud_account_id: str) -> dict[str, Any] | None:
+    account_id = urllib.parse.quote(cloud_account_id, safe="")
+    rows = _rest_select(
+        f"broker_sync_channels?select=id,status,payload_cursor,acked_cursor&account_id=eq.{account_id}&limit=1",
+        session,
+    )
+    return rows[0] if rows else None
+
+
+def _cloud_publish_account(session: dict[str, Any], account: dict[str, Any]) -> None:
+    local_id = str(account.get("local_id") or "")
+    cloud_account_id = str(account.get("id") or "")
+    login = str(account.get("broker_login") or "").strip()
+    server = str(account.get("broker_server") or "").strip()
+    if not local_id or not cloud_account_id or not login or not server:
+        return
+    if not _credential_saved(local_id):
+        return
+
+    channel = _cloud_channel(session, cloud_account_id)
+    if channel and channel.get("payload_cursor") != channel.get("acked_cursor"):
+        channel_id = urllib.parse.quote(str(channel.get("id") or ""), safe="")
+        if channel_id:
+            _rest_patch(
+                f"broker_sync_channels?id=eq.{channel_id}",
+                session,
+                {
+                    "agent_id": session["agentId"],
+                    "agent_version": APP_VERSION,
+                    "agent_last_seen": _utc_now().isoformat(),
+                },
+            )
+        return
+
+    since = str(channel.get("acked_cursor") or "") if channel else ""
+    payload = _sync(SyncRequest(
+        accountId=local_id,
+        login=login,
+        server=server,
+        password=None,
+        rememberPassword=False,
+        since=since or None,
+    ))
+    now = _utc_now().isoformat()
+    _rest_upsert(
+        "broker_sync_channels?on_conflict=user_id,account_id",
+        session,
+        {
+            "user_id": session["userId"],
+            "account_id": cloud_account_id,
+            "agent_id": session["agentId"],
+            "agent_version": APP_VERSION,
+            "status": "ready",
+            "payload": payload,
+            "payload_cursor": payload.get("cursor"),
+            "last_error": None,
+            "agent_last_seen": now,
+        },
+    )
+
+
+def _cloud_bridge_cycle() -> None:
+    session = _cloud_access_session()
+    for account in _cloud_accounts(session):
+        try:
+            _cloud_publish_account(session, account)
+        except Exception as error:
+            # Keep processing other MT5 accounts; never persist credentials in errors.
+            with CLOUD_STATE_LOCK:
+                CLOUD_RUNTIME["lastError"] = f"{account.get('name') or 'MT5'}: {str(error)[:180]}"
+    with CLOUD_STATE_LOCK:
+        CLOUD_RUNTIME["lastCycleAt"] = _utc_now().isoformat()
+
+
+def _cloud_bridge_loop() -> None:
+    while not CLOUD_STOP_EVENT.is_set():
+        try:
+            if _load_cloud_session():
+                with CLOUD_STATE_LOCK:
+                    CLOUD_RUNTIME["lastError"] = None
+                _cloud_bridge_cycle()
+        except Exception as error:
+            with CLOUD_STATE_LOCK:
+                CLOUD_RUNTIME["lastError"] = str(error)[:240]
+                CLOUD_RUNTIME["lastCycleAt"] = _utc_now().isoformat()
+        CLOUD_STOP_EVENT.wait(CLOUD_POLL_SECONDS)
+
+
+def _cloud_status() -> dict[str, Any]:
+    session = _load_cloud_session()
+    with CLOUD_STATE_LOCK:
+        runtime = dict(CLOUD_RUNTIME)
+    return {
+        "paired": session is not None,
+        "userEmail": str(session.get("userEmail") or "") if session else None,
+        "agentId": str(session.get("agentId") or "") if session else None,
+        "lastCycleAt": runtime.get("lastCycleAt"),
+        "lastError": runtime.get("lastError"),
+    }
 
 
 def _utc_now() -> datetime:
@@ -521,7 +823,37 @@ def health() -> dict[str, Any]:
         "version": APP_VERSION,
         "mt5ModuleVersion": getattr(mt5, "__version__", None),
         "credentialProtection": "windows-dpapi" if os.name == "nt" else "unavailable",
+        "cloudBridge": "v1",
     }
+
+
+@app.get("/cloud/status")
+def cloud_status() -> dict[str, Any]:
+    return _cloud_status()
+
+
+@app.post("/cloud/pair")
+def pair_cloud(request: CloudPairRequest) -> dict[str, Any]:
+    try:
+        _cloud_sign_in(request.email, request.password)
+        CLOUD_STOP_EVENT.clear()
+        return _cloud_status()
+    except RuntimeError as error:
+        raise HTTPException(status_code=401, detail=str(error)) from error
+    except Exception as error:
+        raise HTTPException(status_code=500, detail=f"Freedom Cloud 配對失敗：{type(error).__name__}") from error
+
+
+@app.delete("/cloud/pair")
+def unpair_cloud() -> dict[str, Any]:
+    try:
+        _delete_cloud_session()
+        with CLOUD_STATE_LOCK:
+            CLOUD_RUNTIME["lastError"] = None
+            CLOUD_RUNTIME["lastCycleAt"] = None
+        return _cloud_status()
+    except RuntimeError as error:
+        raise HTTPException(status_code=500, detail=str(error)) from error
 
 
 @app.get("/credentials/{account_id}")
@@ -547,3 +879,19 @@ def sync(request: SyncRequest) -> dict[str, Any]:
     except Exception as error:
         # Do not include request data or credentials in the error response/log.
         raise HTTPException(status_code=500, detail=f"MT5 同步失敗：{type(error).__name__}") from error
+
+
+@app.on_event("startup")
+def start_cloud_bridge_worker() -> None:
+    CLOUD_STOP_EVENT.clear()
+    worker = threading.Thread(
+        target=_cloud_bridge_loop,
+        name="freedom-cloud-bridge",
+        daemon=True,
+    )
+    worker.start()
+
+
+@app.on_event("shutdown")
+def stop_cloud_bridge_worker() -> None:
+    CLOUD_STOP_EVENT.set()

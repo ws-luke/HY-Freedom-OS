@@ -8,8 +8,10 @@ if not exist ".venv\Scripts\python.exe" (
 )
 title Freedom MT5 Sync Service
 echo Freedom MT5 Sync Service running on this PC...
-echo Multi-Account Agent enabled. Keep this window open while synchronizing Freedom OS.
+echo Multi-Account Agent + Freedom Cloud Bridge v1 enabled.
+echo Keep this window open while you want automatic MT5 cloud synchronization.
 echo Saved Read-only credentials are protected by your Windows account (DPAPI).
+echo Freedom Cloud session is also protected by Windows DPAPI.
 echo.
 call ".venv\Scripts\python.exe" -m uvicorn app:app --host 127.0.0.1 --port 8765
 pause
