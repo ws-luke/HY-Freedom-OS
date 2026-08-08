@@ -6,6 +6,7 @@ import { storeToRefs } from 'pinia'
 import { useTradeStore } from '@/stores/useTradeStore'
 import { useTradeReviewStore } from '@/stores/useTradeReviewStore'
 import TradeAnalyticsDashboard from '../components/TradeAnalyticsDashboard.vue'
+import TradeDecisionIntelligence from '../components/TradeDecisionIntelligence.vue'
 import TradeEdgeExplorer from '../components/TradeEdgeExplorer.vue'
 import TradeIntelligenceCenter from '../components/TradeIntelligenceCenter.vue'
 
@@ -92,7 +93,7 @@ const resetFilters = () => {
           <h1
             class="mt-2 text-3xl font-bold text-zinc-100"
           >
-            Trade Analytics v2
+            Trade Analytics v3 · Intelligence
           </h1>
 
           <p
@@ -175,6 +176,8 @@ const resetFilters = () => {
         </label>
       </div>
     </section>
+
+    <TradeDecisionIntelligence :trades="filteredTrades" :reviews="filteredReviews" />
 
     <TradeIntelligenceCenter :trades="filteredTrades" :reviews="filteredReviews" />
 

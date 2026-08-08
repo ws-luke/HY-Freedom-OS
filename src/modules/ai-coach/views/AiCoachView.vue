@@ -7,7 +7,9 @@ import DailyCoachReportCard from '../components/DailyCoachReportCard.vue'
 import WeeklyCoachSummaryCard from '../components/WeeklyCoachSummaryCard.vue'
 import CoachGrowthTrendCard from '../components/CoachGrowthTrendCard.vue'
 import CoachRuleIntelligenceCard from '../components/CoachRuleIntelligenceCard.vue'
+import CoachTradeIntelligenceCard from '../components/CoachTradeIntelligenceCard.vue'
 import CoachPlanBridgeCard from '../components/CoachPlanBridgeCard.vue'
+import { buildTradeIntelligence } from '@/services/trade-intelligence.service'
 import { useTradeReviewStore } from '@/stores/useTradeReviewStore'
 import { useTradeStore } from '@/stores/useTradeStore'
 
@@ -25,6 +27,10 @@ const {
   averageScore,
   completedReviewCount,
 } = storeToRefs(tradeReviewStore)
+
+const tradeIntelligence = computed(() =>
+  buildTradeIntelligence(sortedTrades.value, sortedReviews.value),
+)
 
 const reviewCompletionRate = computed(() => {
   if (statistics.value.closedTrades === 0) {
@@ -353,6 +359,11 @@ const primaryAdvice = computed(() => {
     return `下一筆唯一規則：「${currentRule.value}」先只做好這一條，不要同時增加新的執行條件。`
   }
 
+  const costlyMistake = tradeIntelligence.value.mostExpensiveMistake
+  if (costlyMistake && costlyMistake.affected.trades >= 2 && costlyMistake.deltaR < 0) {
+    return `目前最明顯的績效漏洞是「${costlyMistake.label}」：有這個錯誤時，平均比沒有時少 ${Math.abs(costlyMistake.deltaR).toFixed(2)}R。下一筆先避免這一項。`
+  }
+
   if (
     weakestDiscipline.value &&
     weakestDiscipline.value.rate < 80
@@ -493,6 +504,8 @@ const formatMoney = (
     </section>
 
     <CoachRuleIntelligenceCard />
+
+    <CoachTradeIntelligenceCard />
 
     <CoachPlanBridgeCard />
 
