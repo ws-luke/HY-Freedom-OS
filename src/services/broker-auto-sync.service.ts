@@ -13,6 +13,7 @@ const ERROR_RETRY_COOLDOWN_MS = 60_000
 let started = false
 let timer: number | null = null
 let running = false
+let initialCycleNotified = false
 const recoveryAttemptAt = new Map<string, number>()
 
 const eligibleAccounts = () => {
@@ -27,26 +28,49 @@ const eligibleAccounts = () => {
   )
 }
 
-const notifyImport = (
-  accountName: string,
-  result: Awaited<ReturnType<typeof syncMt5Account>>,
+const notifyInitialCycle = (
+  summary: {
+    succeeded: number
+    failed: number
+    addedTrades: number
+    tradesReadyForReview: number
+    addedCashflows: number
+  },
 ): void => {
-  if (
-    result.addedTrades === 0 &&
-    result.tradesReadyForReview === 0 &&
-    result.addedCashflows === 0
-  ) return
+  if (initialCycleNotified) return
+  initialCycleNotified = true
 
-  const pieces: string[] = []
-  if (result.openedTradesDetected > 0) pieces.push(`新持倉 ${result.openedTradesDetected}`)
-  if (result.tradesReadyForReview > 0) pieces.push(`待復盤 ${result.tradesReadyForReview}`)
-  if (result.addedCashflows > 0) pieces.push(`資金流水 ${result.addedCashflows}`)
+  const pieces = [
+    `帳戶 ${summary.succeeded} 個`,
+    `新交易 ${summary.addedTrades} 筆`,
+    `待復盤 ${summary.tradesReadyForReview} 筆`,
+    `資金流水 ${summary.addedCashflows} 筆`,
+  ]
+
+  if (summary.failed > 0) pieces.push(`失敗 ${summary.failed} 個`)
 
   useNotificationStore().addNotification({
-    type: result.tradesReadyForReview > 0 ? 'warning' : 'success',
-    title: `MT5 自動同步 · ${accountName}`,
-    message: pieces.join(' · ') || `新增 ${result.addedTrades} 筆交易`,
-    route: result.tradesReadyForReview > 0 ? '/review' : '/accounts',
+    type: summary.failed > 0
+      ? 'warning'
+      : summary.tradesReadyForReview > 0
+        ? 'warning'
+        : 'success',
+    title: summary.failed > 0
+      ? '登入後同步完成 · 部分帳戶需檢查'
+      : '登入後 MT5 同步完成',
+    message: pieces.join(' · '),
+    route: summary.tradesReadyForReview > 0 ? '/review' : '/accounts',
+  })
+}
+
+const notifyInitialFailure = (message: string): void => {
+  if (initialCycleNotified) return
+  initialCycleNotified = true
+  useNotificationStore().addNotification({
+    type: 'danger',
+    title: '登入後 MT5 同步未完成',
+    message,
+    route: '/accounts',
   })
 }
 
@@ -58,7 +82,22 @@ const run = async (): Promise<void> => {
   running = true
   try {
     const health = await getMt5SyncHealth()
-    if (!health || !isMt5AgentCompatible(health.version)) return
+    if (!health) {
+      notifyInitialFailure('Freedom MT5 Agent 目前沒有回應；背景服務恢復後會自動繼續同步。')
+      return
+    }
+    if (!isMt5AgentCompatible(health.version)) {
+      notifyInitialFailure(`Freedom MT5 Agent 版本 ${health.version} 過舊，請更新後再同步。`)
+      return
+    }
+
+    const summary = {
+      succeeded: 0,
+      failed: 0,
+      addedTrades: 0,
+      tradesReadyForReview: 0,
+      addedCashflows: 0,
+    }
 
     for (const account of accounts) {
       try {
@@ -68,18 +107,27 @@ const run = async (): Promise<void> => {
           if (now - previousAttempt < ERROR_RETRY_COOLDOWN_MS) continue
 
           recoveryAttemptAt.set(account.id, now)
-          if (!(await getMt5CredentialStatus(account.id))) continue
+          if (!(await getMt5CredentialStatus(account.id))) {
+            summary.failed += 1
+            continue
+          }
         }
 
         const result = await syncMt5Account(account, null, { background: true })
         recoveryAttemptAt.delete(account.id)
-        notifyImport(account.name, result)
+        summary.succeeded += 1
+        summary.addedTrades += result.addedTrades
+        summary.tradesReadyForReview += result.tradesReadyForReview
+        summary.addedCashflows += result.addedCashflows
       }
       catch {
+        summary.failed += 1
         // The account contains the actionable error and pauses automatic retry
         // until the user manually reconnects it.
       }
     }
+
+    notifyInitialCycle(summary)
   }
   finally {
     running = false
@@ -107,6 +155,9 @@ export const stopBrokerAutoSync = (): void => {
   started = false
   if (timer !== null) window.clearInterval(timer)
   timer = null
+  running = false
+  initialCycleNotified = false
+  recoveryAttemptAt.clear()
   document.removeEventListener('visibilitychange', handleVisible)
   window.removeEventListener('online', handleOnline)
 }
