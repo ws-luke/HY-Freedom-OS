@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
+import AccountSessionControl from '@/components/AccountSessionControl.vue'
 import { NAV_ITEMS } from '@/constants/navigation'
 
 const route = useRoute()
@@ -45,6 +46,7 @@ watch(() => route.fullPath, () => { open.value = false })
             {{ item.label }}
           </RouterLink>
         </nav>
+        <AccountSessionControl variant="mobile" />
       </section>
     </Transition>
   </Teleport>

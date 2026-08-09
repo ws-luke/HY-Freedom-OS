@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AccountSessionControl from '@/components/AccountSessionControl.vue'
 import { NAV_ITEMS } from '@/constants/navigation'
 </script>
 
@@ -29,15 +30,7 @@ import { NAV_ITEMS } from '@/constants/navigation'
     </nav>
 
     <div class="border-t border-zinc-800/80 p-4">
-      <div class="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4">
-        <p class="text-sm font-medium text-zinc-200">
-          紀律型波段交易員
-        </p>
-
-        <p class="mt-1 text-xs leading-5 text-zinc-500">
-          沒有符合規劃，就不進場。
-        </p>
-      </div>
+      <AccountSessionControl />
     </div>
   </aside>
 </template>
