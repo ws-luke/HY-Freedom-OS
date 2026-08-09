@@ -11,7 +11,7 @@ const MT5_SYNC_BASE_URL = (
   import.meta.env.VITE_MT5_SYNC_URL || 'http://127.0.0.1:8765'
 ).replace(/\/$/, '')
 
-export const MT5_SYNC_MIN_AGENT_VERSION = '1.6.0'
+export const MT5_SYNC_MIN_AGENT_VERSION = '1.6.1'
 
 export interface Mt5AgentHealth {
   ok: boolean

@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 
 
 APP_NAME = "Freedom MT5 Sync Service"
-APP_VERSION = "1.6.0"
+APP_VERSION = "1.6.1"
 SCHEMA_VERSION = 1
 SYNC_LOCK = threading.Lock()
 CRYPTPROTECT_UI_FORBIDDEN = 0x01
@@ -839,6 +839,35 @@ def _history_for_position(position_id: int) -> list[Any]:
     return sorted(deals, key=lambda item: (getattr(item, "time_msc", 0), getattr(item, "ticket", 0)))
 
 
+def _order_position_map(orders: list[Any]) -> dict[int, int]:
+    result: dict[int, int] = {}
+    for order in orders:
+        ticket = int(getattr(order, "ticket", 0) or 0)
+        position_id = int(
+            getattr(order, "position_id", 0)
+            or getattr(order, "position_by_id", 0)
+            or 0
+        )
+        if ticket and position_id:
+            result[ticket] = position_id
+    return result
+
+
+def _deal_position_identifier(deal: Any, order_positions: dict[int, int]) -> int:
+    position_id = int(getattr(deal, "position_id", 0) or 0)
+    if position_id:
+        return position_id
+
+    order_ticket = int(getattr(deal, "order", 0) or 0)
+    mapped_position = order_positions.get(order_ticket, 0)
+    if mapped_position:
+        return mapped_position
+
+    # Some broker histories omit DEAL_POSITION_ID. Keeping a stable deal-level
+    # fallback is preferable to silently dropping the trade from the journal.
+    return int(getattr(deal, "ticket", 0) or order_ticket or 0)
+
+
 def _entry_sl_tp(position_id: int) -> tuple[float, float]:
     orders = mt5.history_orders_get(position=position_id)
     if not orders:
@@ -858,10 +887,21 @@ def _normalize_position(
     login: str,
     position_id: int,
     current_position: Any | None,
+    prefetched_deals: list[Any] | None = None,
 ) -> dict[str, Any] | None:
-    deals = [deal for deal in _history_for_position(position_id) if _is_market_deal(deal)]
+    source_deals = prefetched_deals if prefetched_deals is not None else _history_for_position(position_id)
+    deals = [deal for deal in source_deals if _is_market_deal(deal)]
     entry_deals = [deal for deal in deals if _deal_is_entry(deal)]
     exit_deals = [deal for deal in deals if _deal_is_exit(deal)]
+
+    # A position may have opened before the rolling overlap but closed inside
+    # it. Recover its complete lifecycle before deciding the entry is missing.
+    if prefetched_deals is not None and not entry_deals:
+        complete_deals = [deal for deal in _history_for_position(position_id) if _is_market_deal(deal)]
+        if complete_deals:
+            deals = complete_deals
+            entry_deals = [deal for deal in deals if _deal_is_entry(deal)]
+            exit_deals = [deal for deal in deals if _deal_is_exit(deal)]
 
     if current_position is not None and not entry_deals:
         direction = "buy" if getattr(current_position, "type", None) == mt5.POSITION_TYPE_BUY else "sell"
@@ -1014,11 +1054,21 @@ def _sync(request: SyncRequest) -> dict[str, Any]:
                 if _position_identifier(position)
             }
 
-            touched_ids = {
-                int(getattr(deal, "position_id", 0) or 0)
-                for deal in recent_deals
-                if _is_market_deal(deal) and int(getattr(deal, "position_id", 0) or 0)
-            }
+            history_orders = mt5.history_orders_get(since, now)
+            if history_orders is None:
+                history_orders = ()
+
+            order_positions = _order_position_map(list(history_orders))
+            deals_by_position: dict[int, list[Any]] = {}
+            for deal in recent_deals:
+                if not _is_market_deal(deal):
+                    continue
+                position_id = _deal_position_identifier(deal, order_positions)
+                if not position_id:
+                    continue
+                deals_by_position.setdefault(position_id, []).append(deal)
+
+            touched_ids = set(deals_by_position.keys())
             touched_ids.update(current_by_id.keys())
 
             normalized_trades: list[dict[str, Any]] = []
@@ -1027,6 +1077,13 @@ def _sync(request: SyncRequest) -> dict[str, Any]:
                     request.login.strip(),
                     position_id,
                     current_by_id.get(position_id),
+                    sorted(
+                        deals_by_position[position_id],
+                        key=lambda item: (
+                            getattr(item, "time_msc", 0),
+                            getattr(item, "ticket", 0),
+                        ),
+                    ) if position_id in deals_by_position else None,
                 )
                 if normalized:
                     normalized_trades.append(normalized)
