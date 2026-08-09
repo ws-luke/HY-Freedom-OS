@@ -40,10 +40,10 @@ onMounted(() => {
 })
 
 const toneClass: Record<AppNotification['type'], string> = {
-  success: 'border-emerald-400/20 bg-emerald-950/95 text-emerald-300',
-  danger: 'border-rose-400/20 bg-rose-950/95 text-rose-300',
-  warning: 'border-amber-400/20 bg-amber-950/95 text-amber-300',
-  info: 'border-sky-400/20 bg-sky-950/95 text-sky-300',
+  success: 'hy-app-toast--success',
+  danger: 'hy-app-toast--danger',
+  warning: 'hy-app-toast--warning',
+  info: 'hy-app-toast--info',
 }
 
 const label: Record<AppNotification['type'], string> = {
@@ -58,7 +58,7 @@ const label: Record<AppNotification['type'], string> = {
   <Teleport to="body">
     <div class="pointer-events-none fixed right-3 top-[max(0.75rem,env(safe-area-inset-top))] z-[120] flex w-[min(24rem,calc(100vw-1.5rem))] flex-col gap-3 sm:right-5 sm:top-5" aria-live="polite" aria-atomic="false">
       <TransitionGroup enter-active-class="transition duration-250" enter-from-class="translate-x-6 opacity-0" leave-active-class="transition duration-200" leave-to-class="translate-x-6 opacity-0" move-class="transition duration-200">
-        <article v-for="toast in visible" :key="toast.id" class="pointer-events-auto overflow-hidden rounded-2xl border p-4 shadow-2xl shadow-black/30 backdrop-blur-xl" :class="toneClass[toast.type]">
+        <article v-for="toast in visible" :key="toast.id" class="hy-app-toast pointer-events-auto overflow-hidden rounded-2xl border p-4 shadow-2xl shadow-black/30 backdrop-blur-xl" :class="toneClass[toast.type]">
           <div class="flex items-start gap-3">
             <div class="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-current/10">
               <span class="text-sm font-bold">{{ toast.type === 'success' ? '✓' : toast.type === 'danger' ? '!' : toast.type === 'warning' ? '!' : 'i' }}</span>
@@ -75,3 +75,84 @@ const label: Record<AppNotification['type'], string> = {
     </div>
   </Teleport>
 </template>
+
+<style>
+.hy-app-toast {
+  --toast-accent: #7dd3fc;
+  --toast-border: rgba(56, 189, 248, 0.22);
+  background: rgba(8, 47, 73, 0.95);
+  border-color: var(--toast-border);
+  color: var(--toast-accent);
+}
+
+.hy-app-toast--success {
+  --toast-accent: #6ee7b7;
+  --toast-border: rgba(52, 211, 153, 0.22);
+  background: rgba(2, 44, 34, 0.95);
+}
+
+.hy-app-toast--danger {
+  --toast-accent: #fda4af;
+  --toast-border: rgba(251, 113, 133, 0.22);
+  background: rgba(76, 5, 25, 0.95);
+}
+
+.hy-app-toast--warning {
+  --toast-accent: #fcd34d;
+  --toast-border: rgba(251, 191, 36, 0.22);
+  background: rgba(69, 26, 3, 0.95);
+}
+
+.hy-app-toast--info {
+  --toast-accent: #7dd3fc;
+  --toast-border: rgba(56, 189, 248, 0.22);
+  background: rgba(8, 47, 73, 0.95);
+}
+
+:root[data-theme='light'] .hy-app-toast {
+  background: rgba(255, 255, 255, 0.97);
+  border-color: var(--toast-border);
+  color: var(--toast-accent);
+  box-shadow:
+    0 18px 45px rgba(15, 23, 42, 0.14),
+    0 2px 8px rgba(15, 23, 42, 0.06);
+}
+
+:root[data-theme='light'] .hy-app-toast--success {
+  --toast-accent: #047857;
+  --toast-border: rgba(5, 150, 105, 0.24);
+  background: rgba(240, 253, 250, 0.98);
+}
+
+:root[data-theme='light'] .hy-app-toast--danger {
+  --toast-accent: #be123c;
+  --toast-border: rgba(225, 29, 72, 0.22);
+  background: rgba(255, 241, 242, 0.98);
+}
+
+:root[data-theme='light'] .hy-app-toast--warning {
+  --toast-accent: #b45309;
+  --toast-border: rgba(217, 119, 6, 0.24);
+  background: rgba(255, 251, 235, 0.98);
+}
+
+:root[data-theme='light'] .hy-app-toast--info {
+  --toast-accent: #0369a1;
+  --toast-border: rgba(2, 132, 199, 0.22);
+  background: rgba(240, 249, 255, 0.98);
+}
+
+:root[data-theme='light'] .hy-app-toast .text-zinc-100 {
+  color: #0f172a !important;
+}
+
+:root[data-theme='light'] .hy-app-toast .text-zinc-400,
+:root[data-theme='light'] .hy-app-toast .text-zinc-500 {
+  color: #64748b !important;
+}
+
+:root[data-theme='light'] .hy-app-toast button:hover {
+  background: rgba(15, 23, 42, 0.06);
+  color: #334155 !important;
+}
+</style>
