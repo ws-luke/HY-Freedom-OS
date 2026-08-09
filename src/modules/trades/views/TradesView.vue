@@ -9,6 +9,7 @@ import TradeAdvancedFilters from '../components/TradeAdvancedFilters.vue'
 import TradeDetailModal from '../components/TradeDetailModal.vue'
 import TradeDataTools from '../components/TradeDataTools.vue'
 import TradeReviewModal from '../components/TradeReviewModal.vue'
+import AppPagination from '@/components/AppPagination.vue'
 import { useConfirmDialogStore } from '@/stores/useConfirmDialogStore'
 import { useNotificationStore } from '@/stores/useNotificationStore'
 import { useTradeReviewStore } from '@/stores/useTradeReviewStore'
@@ -247,6 +248,19 @@ const filteredTrades = computed(() => {
       getTradeTimestamp(a)
     )
   })
+})
+
+const tradePage = ref(1)
+const tradePageSize = ref(10)
+const tradePageCount = computed(() => Math.max(1, Math.ceil(filteredTrades.value.length / tradePageSize.value)))
+const paginatedTrades = computed(() => {
+  const start = (tradePage.value - 1) * tradePageSize.value
+  return filteredTrades.value.slice(start, start + tradePageSize.value)
+})
+
+watch(filters, () => { tradePage.value = 1 })
+watch([() => filteredTrades.value.length, tradePageSize], () => {
+  if (tradePage.value > tradePageCount.value) tradePage.value = tradePageCount.value
 })
 
 const filteredStatistics = computed(() => {
@@ -935,7 +949,7 @@ const toggleTradeFavorite = (
         class="divide-y divide-zinc-800"
       >
         <article
-          v-for="trade in filteredTrades"
+          v-for="trade in paginatedTrades"
           :key="trade.id"
           class="p-5 transition hover:bg-zinc-800/30"
         >
@@ -1285,6 +1299,14 @@ const toggleTradeFavorite = (
           </div>
         </article>
       </div>
+
+      <AppPagination
+        v-if="filteredTrades.length"
+        v-model:page="tradePage"
+        v-model:page-size="tradePageSize"
+        :total="filteredTrades.length"
+        :page-sizes="[10, 20, 50]"
+      />
 
       <div
         v-else

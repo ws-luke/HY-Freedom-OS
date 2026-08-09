@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 
 import EditPlaybookModal from '../components/EditPlaybookModal.vue'
@@ -11,6 +11,7 @@ import { useConfirmDialogStore } from '@/stores/useConfirmDialogStore'
 import { useNotificationStore } from '@/stores/useNotificationStore'
 import PlaybookPerformanceSummaryCard from '../components/PlaybookPerformanceSummaryCard.vue'
 import SignalLibraryPanel from '../components/SignalLibraryPanel.vue'
+import AppPagination from '@/components/AppPagination.vue'
 import type {
   NewPlaybookInput,
   PlaybookDirection,
@@ -43,6 +44,19 @@ const selectedStatus = ref<
 
 const searchKeyword = ref('')
 
+type PlaybookViewMode = 'grid' | 'list'
+
+const VIEW_MODE_STORAGE_KEY = 'hy-freedom-os:playbook-view-mode'
+const viewMode = ref<PlaybookViewMode>(
+  typeof window !== 'undefined' && window.localStorage.getItem(VIEW_MODE_STORAGE_KEY) === 'list'
+    ? 'list'
+    : 'grid',
+)
+
+watch(viewMode, value => {
+  if (typeof window !== 'undefined') window.localStorage.setItem(VIEW_MODE_STORAGE_KEY, value)
+})
+
 const filteredPlaybooks = computed(() => {
   const keyword = searchKeyword.value
     .trim()
@@ -70,6 +84,19 @@ const filteredPlaybooks = computed(() => {
       matchesKeyword
     )
   })
+})
+
+const playbookPage = ref(1)
+const playbookPageSize = ref(6)
+const playbookPageCount = computed(() => Math.max(1, Math.ceil(filteredPlaybooks.value.length / playbookPageSize.value)))
+const paginatedPlaybooks = computed(() => {
+  const start = (playbookPage.value - 1) * playbookPageSize.value
+  return filteredPlaybooks.value.slice(start, start + playbookPageSize.value)
+})
+
+watch([searchKeyword, selectedDirection, selectedStatus], () => { playbookPage.value = 1 })
+watch([() => filteredPlaybooks.value.length, playbookPageSize], () => {
+  if (playbookPage.value > playbookPageCount.value) playbookPage.value = playbookPageCount.value
 })
 
 const directionLabel = (
@@ -359,6 +386,32 @@ const clearFilters = (): void => {
     <section
       class="rounded-3xl border border-zinc-800 bg-zinc-900/70 p-5"
     >
+      <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p class="text-sm font-medium text-zinc-200">策略顯示方式</p>
+          <p class="mt-1 text-xs text-zinc-500">共 {{ filteredPlaybooks.length }} 個符合條件的策略</p>
+        </div>
+
+        <div class="inline-flex w-fit rounded-xl border border-zinc-700 bg-zinc-950/50 p-1">
+          <button
+            type="button"
+            class="rounded-lg px-3 py-2 text-xs font-medium transition"
+            :class="viewMode === 'grid' ? 'bg-amber-500/15 text-amber-300' : 'text-zinc-500 hover:text-zinc-200'"
+            @click="viewMode = 'grid'"
+          >
+            ▦ 卡片模式
+          </button>
+          <button
+            type="button"
+            class="rounded-lg px-3 py-2 text-xs font-medium transition"
+            :class="viewMode === 'list' ? 'bg-sky-500/15 text-sky-300' : 'text-zinc-500 hover:text-zinc-200'"
+            @click="viewMode = 'list'"
+          >
+            ☰ 清單模式
+          </button>
+        </div>
+      </div>
+
       <div class="grid gap-3 lg:grid-cols-3">
         <input
           v-model="searchKeyword"
@@ -412,11 +465,11 @@ const clearFilters = (): void => {
     </section>
 
     <div
-      v-if="filteredPlaybooks.length"
+      v-if="filteredPlaybooks.length && viewMode === 'grid'"
       class="grid gap-6 xl:grid-cols-2"
     >
       <article
-        v-for="playbook in filteredPlaybooks"
+        v-for="playbook in paginatedPlaybooks"
         :key="playbook.id"
         class="overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-900/70 shadow-xl shadow-black/10 transition hover:border-zinc-700"
       >
@@ -595,8 +648,89 @@ const clearFilters = (): void => {
       </article>
     </div>
 
+    <div
+      v-if="filteredPlaybooks.length && viewMode === 'list'"
+      class="overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-900/70 shadow-xl shadow-black/10"
+    >
+      <article
+        v-for="playbook in paginatedPlaybooks"
+        :key="playbook.id"
+        class="border-b border-zinc-800 p-5 transition last:border-b-0 hover:bg-zinc-800/25"
+      >
+        <div class="flex flex-col gap-5 xl:flex-row xl:items-center">
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-2">
+              <h2 class="text-lg font-semibold text-zinc-100">{{ playbook.name }}</h2>
+              <span class="rounded-full border px-2.5 py-1 text-xs font-medium" :class="directionClasses(playbook.direction)">
+                {{ directionLabel(playbook.direction) }}
+              </span>
+              <span class="rounded-full border px-2.5 py-1 text-xs font-medium" :class="statusClasses(playbook.status)">
+                {{ statusLabel(playbook.status) }}
+              </span>
+            </div>
+            <p class="mt-2 line-clamp-2 text-sm leading-6 text-zinc-500">{{ playbook.description }}</p>
+          </div>
+
+          <div class="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-4 xl:w-[430px]">
+            <div class="rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2.5">
+              <p class="text-[10px] text-zinc-500">評級</p>
+              <p class="mt-1 text-xs text-amber-300">{{ '★'.repeat(playbook.rating) }}</p>
+            </div>
+            <div class="rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2.5">
+              <p class="text-[10px] text-zinc-500">交易筆數</p>
+              <p class="mt-1 text-sm font-semibold text-zinc-200">{{ playbook.totalTrades }}</p>
+            </div>
+            <div class="rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2.5">
+              <p class="text-[10px] text-zinc-500">勝率</p>
+              <p class="mt-1 text-sm font-semibold text-emerald-300">{{ winRate(playbook) }}%</p>
+            </div>
+            <div class="rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2.5">
+              <p class="text-[10px] text-zinc-500">平均報酬</p>
+              <p class="mt-1 text-sm font-semibold text-amber-300">{{ playbook.averageR.toFixed(2) }}R</p>
+            </div>
+          </div>
+
+          <div class="flex shrink-0 flex-wrap gap-2 xl:w-[250px] xl:justify-end">
+            <button
+              type="button"
+              class="rounded-xl border border-zinc-700 px-3 py-2 text-xs text-zinc-400 transition hover:border-zinc-600 hover:text-zinc-200"
+              @click="togglePlaybookStatus(playbook)"
+            >
+              {{ playbook.status === 'active' ? '暫停' : '啟用' }}
+            </button>
+            <button
+              type="button"
+              class="rounded-xl border border-sky-500/25 bg-sky-500/10 px-3 py-2 text-xs font-medium text-sky-300 transition hover:bg-sky-500/15"
+              @click="openEditPlaybook(playbook)"
+            >
+              編輯
+            </button>
+            <button
+              type="button"
+              class="rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-300 transition hover:bg-amber-500/15"
+              @click="openPlaybookDetail(playbook)"
+            >
+              查看策略
+            </button>
+          </div>
+        </div>
+      </article>
+    </div>
+
     <section
-      v-else
+      v-if="filteredPlaybooks.length > 6"
+      class="overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-900/70 shadow-xl shadow-black/10"
+    >
+      <AppPagination
+        v-model:page="playbookPage"
+        v-model:page-size="playbookPageSize"
+        :total="filteredPlaybooks.length"
+        :page-sizes="[6, 12, 24]"
+      />
+    </section>
+
+    <section
+      v-if="!filteredPlaybooks.length"
       class="rounded-3xl border border-zinc-800 bg-zinc-900/70 p-12 text-center"
     >
       <p class="text-zinc-400">
