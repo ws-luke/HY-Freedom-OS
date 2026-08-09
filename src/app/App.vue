@@ -3,6 +3,7 @@ import { onMounted, onUnmounted } from 'vue'
 import { RouterView } from 'vue-router'
 
 import AppErrorBoundary from '@/components/AppErrorBoundary.vue'
+import AppToastHost from '@/components/AppToastHost.vue'
 import { usePlaybookPerformanceSync } from '@/composables/usePlaybookPerformanceSync'
 import { useTradingRiskSync } from '@/composables/useTradingRiskSync'
 import { startBrokerAutoSync } from '@/services/broker-auto-sync.service'
@@ -40,5 +41,6 @@ onUnmounted(() => {
 <template>
   <AppErrorBoundary>
     <RouterView />
+    <AppToastHost />
   </AppErrorBoundary>
 </template>

@@ -2,35 +2,47 @@
 import { onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
+import AppConfirmDialog from '@/components/AppConfirmDialog.vue'
 import {
   getCloudIdentity,
   onCloudAuthStateChange,
   signOutCloud,
 } from '@/services/cloud/cloud-auth.service'
 import type { FreedomCloudIdentity } from '@/types/cloud'
+import { useNotificationStore } from '@/stores/useNotificationStore'
 
 withDefaults(defineProps<{ variant?: 'sidebar' | 'mobile' }>(), {
   variant: 'sidebar',
 })
 
 const router = useRouter()
+const notificationStore = useNotificationStore()
 const identity = ref<FreedomCloudIdentity | null>(null)
 const loggingOut = ref(false)
-const errorMessage = ref('')
+const confirmOpen = ref(false)
 let unsubscribe: (() => void) | null = null
 
 const logout = async (): Promise<void> => {
   if (loggingOut.value) return
   loggingOut.value = true
-  errorMessage.value = ''
 
   try {
     await signOutCloud()
     identity.value = null
+    confirmOpen.value = false
+    notificationStore.addNotification({
+      type: 'success',
+      title: '已安全登出',
+      message: 'Freedom Account 已登出，本機與雲端交易資料均完整保留。',
+    })
     await router.replace({ name: 'login' })
   }
   catch {
-    errorMessage.value = '登出失敗，請稍後再試。'
+    notificationStore.addNotification({
+      type: 'danger',
+      title: '登出失敗',
+      message: '目前無法結束登入狀態，請稍後再試。',
+    })
   }
   finally {
     loggingOut.value = false
@@ -63,12 +75,21 @@ onUnmounted(() => unsubscribe?.())
           type="button"
           :disabled="loggingOut"
           class="shrink-0 rounded-xl border border-zinc-700 px-3 py-2 text-xs font-medium text-zinc-400 transition hover:border-rose-400/30 hover:bg-rose-400/[0.06] hover:text-rose-300 disabled:cursor-wait disabled:opacity-50"
-          @click="logout"
+          @click="confirmOpen = true"
         >
           {{ loggingOut ? '登出中…' : '登出' }}
         </button>
       </div>
-      <p v-if="errorMessage" class="mt-2 text-[11px] text-rose-300">{{ errorMessage }}</p>
     </div>
+    <AppConfirmDialog
+      :open="confirmOpen"
+      title="確認登出 Freedom OS？"
+      message="登出後需要重新輸入帳號密碼；所有交易紀錄、復盤與 MT5 同步資料都會完整保留。"
+      confirm-label="確認登出"
+      :busy="loggingOut"
+      tone="danger"
+      @cancel="confirmOpen = false"
+      @confirm="logout"
+    />
   </div>
 </template>
