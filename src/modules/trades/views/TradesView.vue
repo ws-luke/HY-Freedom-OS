@@ -252,6 +252,13 @@ const filteredTrades = computed(() => {
 
 const tradePage = ref(1)
 const tradePageSize = ref(10)
+type TradeViewMode = 'detailed' | 'compact'
+const TRADE_VIEW_MODE_STORAGE_KEY = 'hy-freedom-os:trade-view-mode'
+const tradeViewMode = ref<TradeViewMode>(
+  typeof window !== 'undefined' && window.localStorage.getItem(TRADE_VIEW_MODE_STORAGE_KEY) === 'compact'
+    ? 'compact'
+    : 'detailed',
+)
 const tradePageCount = computed(() => Math.max(1, Math.ceil(filteredTrades.value.length / tradePageSize.value)))
 const paginatedTrades = computed(() => {
   const start = (tradePage.value - 1) * tradePageSize.value
@@ -259,6 +266,9 @@ const paginatedTrades = computed(() => {
 })
 
 watch(filters, () => { tradePage.value = 1 })
+watch(tradeViewMode, value => {
+  if (typeof window !== 'undefined') window.localStorage.setItem(TRADE_VIEW_MODE_STORAGE_KEY, value)
+})
 watch([() => filteredTrades.value.length, tradePageSize], () => {
   if (tradePage.value > tradePageCount.value) tradePage.value = tradePageCount.value
 })
@@ -932,20 +942,34 @@ const toggleTradeFavorite = (
     <section
       class="overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-900/70 shadow-xl shadow-black/10"
     >
-      <header class="border-b border-zinc-800 p-6">
-        <h2 class="text-xl font-semibold text-zinc-100">
-          交易列表
-        </h2>
+      <header class="flex flex-col gap-4 border-b border-zinc-800 p-6 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 class="text-xl font-semibold text-zinc-100">交易列表</h2>
+          <p class="mt-1 text-sm text-zinc-500">目前顯示 {{ filteredTrades.length }} 筆交易</p>
+        </div>
 
-        <p class="mt-1 text-sm text-zinc-500">
-          目前顯示
-          {{ filteredTrades.length }}
-          筆交易
-        </p>
+        <div class="inline-flex w-fit rounded-xl border border-zinc-700 bg-zinc-950/50 p-1">
+          <button
+            type="button"
+            class="rounded-lg px-3 py-2 text-xs font-medium transition"
+            :class="tradeViewMode === 'detailed' ? 'bg-amber-500/15 text-amber-300' : 'text-zinc-500 hover:text-zinc-200'"
+            @click="tradeViewMode = 'detailed'"
+          >
+            ▤ 完整紀錄
+          </button>
+          <button
+            type="button"
+            class="rounded-lg px-3 py-2 text-xs font-medium transition"
+            :class="tradeViewMode === 'compact' ? 'bg-sky-500/15 text-sky-300' : 'text-zinc-500 hover:text-zinc-200'"
+            @click="tradeViewMode = 'compact'"
+          >
+            ☰ 精簡清單
+          </button>
+        </div>
       </header>
 
       <div
-        v-if="filteredTrades.length"
+        v-if="filteredTrades.length && tradeViewMode === 'detailed'"
         class="divide-y divide-zinc-800"
       >
         <article
@@ -1300,6 +1324,102 @@ const toggleTradeFavorite = (
         </article>
       </div>
 
+      <div
+        v-if="filteredTrades.length && tradeViewMode === 'compact'"
+        class="divide-y divide-zinc-800"
+      >
+        <article
+          v-for="trade in paginatedTrades"
+          :key="trade.id"
+          class="p-4 transition hover:bg-zinc-800/25 sm:p-5"
+        >
+          <div class="flex flex-col gap-4 xl:flex-row xl:items-center">
+            <div class="min-w-0 flex-1">
+              <div class="flex flex-wrap items-center gap-2">
+                <h3 class="text-lg font-semibold text-zinc-100">{{ trade.symbol }}</h3>
+                <span class="rounded-full border px-2 py-0.5 text-[11px] font-medium" :class="directionClasses(trade.direction)">
+                  {{ trade.direction === 'buy' ? '多單' : '空單' }}
+                </span>
+                <span class="rounded-full border px-2 py-0.5 text-[11px] font-medium" :class="positionStatusClasses(trade)">
+                  {{ positionStatusLabel(trade) }}
+                </span>
+                <span
+                  v-if="trade.positionStatus === 'closed'"
+                  class="rounded-full border px-2 py-0.5 text-[11px] font-medium"
+                  :class="resultClasses(trade.result)"
+                >
+                  {{ resultLabel(trade.result) }}
+                </span>
+                <span v-if="trade.isFavorite" class="text-xs text-amber-300">★</span>
+              </div>
+              <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-500">
+                <span>{{ trade.date }} {{ trade.time }}</span>
+                <span>{{ trade.account }}</span>
+                <span>{{ trade.dataSource === 'mt5' ? 'MT5 Sync' : 'Manual' }}</span>
+                <span v-if="trade.playbook">{{ trade.playbook }}</span>
+              </div>
+            </div>
+
+            <div class="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-4 xl:w-[560px]">
+              <div class="rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2.5">
+                <p class="text-[10px] text-zinc-500">進場／離場</p>
+                <p class="mt-1 text-xs font-medium text-zinc-200">
+                  {{ formatTradePrice(trade.entryPrice) }} → {{ formatTradePrice(trade.exitPrice) }}
+                </p>
+              </div>
+              <div class="rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2.5">
+                <p class="text-[10px] text-zinc-500">手數</p>
+                <p class="mt-1 text-xs font-medium text-zinc-200">{{ trade.lotSize ? `${trade.lotSize.toFixed(2)} lot` : '—' }}</p>
+              </div>
+              <div class="rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2.5">
+                <p class="text-[10px] text-zinc-500">盈虧</p>
+                <p class="mt-1 text-sm font-semibold" :class="profitLossClasses(trade.profitLoss)">
+                  {{ trade.positionStatus === 'open' ? '未結算' : `${trade.profitLoss > 0 ? '+' : ''}${formatMoney(trade.profitLoss)}` }}
+                </p>
+              </div>
+              <div class="rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2.5">
+                <p class="text-[10px] text-zinc-500">報酬倍數</p>
+                <p class="mt-1 text-sm font-semibold" :class="profitLossClasses(trade.rMultiple)">
+                  {{ trade.positionStatus === 'open' ? '未結算' : `${trade.rMultiple > 0 ? '+' : ''}${trade.rMultiple.toFixed(2)}R` }}
+                </p>
+              </div>
+            </div>
+
+            <div class="flex shrink-0 flex-wrap gap-2 xl:w-[270px] xl:justify-end">
+              <button
+                type="button"
+                class="rounded-xl border border-zinc-700 px-3 py-2 text-xs text-zinc-400 transition hover:border-amber-500/30 hover:text-amber-300"
+                @click="toggleTradeFavorite(trade.id)"
+              >
+                {{ trade.isFavorite ? '★' : '☆' }}
+              </button>
+              <button
+                type="button"
+                class="rounded-xl border border-sky-500/25 bg-sky-500/10 px-3 py-2 text-xs font-medium text-sky-300 transition hover:bg-sky-500/15"
+                @click="openEditTrade(trade)"
+              >
+                {{ trade.positionStatus === 'open' ? '平倉' : '編輯' }}
+              </button>
+              <button
+                type="button"
+                class="rounded-xl border border-zinc-700 px-3 py-2 text-xs text-zinc-400 transition hover:text-zinc-200"
+                @click="openTradeDetail(trade)"
+              >
+                詳情
+              </button>
+              <button
+                v-if="trade.positionStatus === 'closed'"
+                type="button"
+                class="rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-300 transition hover:bg-amber-500/15"
+                @click="openTradeReview(trade.id)"
+              >
+                {{ tradeReviewStore.hasReview(trade.id) ? '看復盤' : '復盤' }}
+              </button>
+            </div>
+          </div>
+        </article>
+      </div>
+
       <AppPagination
         v-if="filteredTrades.length"
         v-model:page="tradePage"
@@ -1309,7 +1429,7 @@ const toggleTradeFavorite = (
       />
 
       <div
-        v-else
+        v-if="!filteredTrades.length"
         class="p-12 text-center"
       >
         <p class="text-zinc-400">
