@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "run-p type-check \"build-only {@}\" --",
     "preview": "npm run build && node server/index.mjs",
+    "release:zip": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/zip.ps1",
     "start": "node server/index.mjs",
     "build-only": "vite build",
     "type-check": "vue-tsc --build"

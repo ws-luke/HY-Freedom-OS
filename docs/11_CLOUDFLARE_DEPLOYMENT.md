@@ -25,6 +25,12 @@ Production branch: main
 
 The repository pins Node.js `22.18.0` through `.node-version` so Cloudflare Pages does not depend on its rolling default build image.
 
+## Verified release package
+
+On Windows, run `Freedom-OS-Release.bat` from the project root. The release guard performs the production build, TypeScript validation, high-risk secret scan, isolated packaging, and archive boundary verification before creating `HY-Freedom-OS-Release.zip`.
+
+The package excludes Git history, dependencies, build output, Python virtual environments, caches, local environment files, logs, and existing ZIP archives. A failed build or detected secret blocks package creation.
+
 The current Freedom OS Supabase project has browser-safe public defaults. Optional build-variable overrides are:
 
 ```text

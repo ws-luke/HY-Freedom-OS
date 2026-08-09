@@ -8,3 +8,4 @@ dist/
 mt5-sync-service/.venv/
 mt5-sync-service/__pycache__/
 mt5-sync-service/*.pyc
+HY-Freedom-OS-Release.zip
