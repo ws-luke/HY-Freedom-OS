@@ -18,6 +18,7 @@ import {
   transactionTypeLabels,
 } from '@/services/account-ledger.service'
 import { useAccountStore } from '@/stores/useAccountStore'
+import { useConfirmDialogStore } from '@/stores/useConfirmDialogStore'
 import { useNotificationStore } from '@/stores/useNotificationStore'
 import { useTradeStore } from '@/stores/useTradeStore'
 
@@ -49,6 +50,7 @@ interface LedgerFilters {
 }
 
 const accountStore = useAccountStore()
+const confirmDialog = useConfirmDialogStore()
 const notificationStore = useNotificationStore()
 const tradeStore = useTradeStore()
 
@@ -386,9 +388,9 @@ const submitAccount = (
   closeAccountModal()
 }
 
-const deleteAccount = (
+const deleteAccount = async (
   account: TradingAccount,
-): void => {
+): Promise<void> => {
   const transactionCount =
     accountStore.getTransactionsByAccountId(
       account.id,
@@ -400,9 +402,12 @@ const deleteAccount = (
         trade.account.trim().toLowerCase() ===
           account.name.trim().toLowerCase()),
   ).length
-  const confirmed = window.confirm(
-    `確定刪除「${account.name}」？\n\n將一併刪除 ${transactionCount} 筆資金流水；${tradeCount} 筆既有交易紀錄會保留，但不再連結此帳戶。`,
-  )
+  const confirmed = await confirmDialog.ask({
+    title: `刪除「${account.name}」？`,
+    message: `將一併刪除 ${transactionCount} 筆資金流水；${tradeCount} 筆既有交易紀錄會保留，但不再連結此帳戶。`,
+    confirmLabel: '確認刪除',
+    tone: 'danger',
+  })
 
   if (!confirmed) return
 
@@ -474,16 +479,19 @@ const submitTransaction = (
   closeTransactionModal()
 }
 
-const deleteTransaction = (
+const deleteTransaction = async (
   transaction: AccountTransaction,
-): void => {
-  const confirmed = window.confirm(
-    `確定刪除 ${transaction.date} 的「${transactionTypeLabels[transaction.type]} ${formatMoney(transaction.amount)}」？${
+): Promise<void> => {
+  const confirmed = await confirmDialog.ask({
+    title: '刪除這筆資金紀錄？',
+    message: `${transaction.date}・${transactionTypeLabels[transaction.type]} ${formatMoney(transaction.amount)}${
       transaction.balanceAfter !== null
-        ? '\n\n這筆紀錄曾同步帳戶餘額；刪除後不會自動回復舊餘額。'
+        ? '。這筆紀錄曾同步帳戶餘額，刪除後不會自動回復舊餘額。'
         : ''
     }`,
-  )
+    confirmLabel: '確認刪除',
+    tone: 'danger',
+  })
 
   if (!confirmed) return
 

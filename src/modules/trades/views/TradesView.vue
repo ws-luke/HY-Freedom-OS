@@ -9,6 +9,7 @@ import TradeAdvancedFilters from '../components/TradeAdvancedFilters.vue'
 import TradeDetailModal from '../components/TradeDetailModal.vue'
 import TradeDataTools from '../components/TradeDataTools.vue'
 import TradeReviewModal from '../components/TradeReviewModal.vue'
+import { useConfirmDialogStore } from '@/stores/useConfirmDialogStore'
 import { useNotificationStore } from '@/stores/useNotificationStore'
 import { useTradeReviewStore } from '@/stores/useTradeReviewStore'
 import { useTradeStore } from '@/stores/useTradeStore'
@@ -35,6 +36,7 @@ type ScreenshotType = 'before' | 'after'
 
 const tradeStore = useTradeStore()
 const tradeReviewStore = useTradeReviewStore()
+const confirmDialog = useConfirmDialogStore()
 const notificationStore = useNotificationStore()
 const route = useRoute()
 
@@ -628,13 +630,16 @@ const updateTrade = (
     tradeStore.getTradeById(tradeId)
 }
 
-const removeTrade = (
+const removeTrade = async (
   tradeId: string,
   symbol: string,
-): void => {
-  const confirmed = window.confirm(
-    `確定要刪除 ${symbol} 這筆交易嗎？`,
-  )
+): Promise<void> => {
+  const confirmed = await confirmDialog.ask({
+    title: `刪除 ${symbol} 交易？`,
+    message: '交易紀錄與其關聯資料將被移除，此操作無法復原。',
+    confirmLabel: '確認刪除',
+    tone: 'danger',
+  })
 
   if (!confirmed) {
     return

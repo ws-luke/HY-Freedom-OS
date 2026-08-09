@@ -6,8 +6,10 @@ import {
   useTradingRiskStore,
   type TradingRiskSettings,
 } from '@/stores/useTradingRiskStore'
+import { useConfirmDialogStore } from '@/stores/useConfirmDialogStore'
 
 const tradingRiskStore = useTradingRiskStore()
+const confirmDialog = useConfirmDialogStore()
 
 const {
   settings,
@@ -172,10 +174,13 @@ const resetForm = (): void => {
   loadSettingsIntoForm()
 }
 
-const resetToDefaults = (): void => {
-  const confirmed = window.confirm(
-    '確定要將交易風控設定恢復為預設值嗎？',
-  )
+const resetToDefaults = async (): Promise<void> => {
+  const confirmed = await confirmDialog.ask({
+    title: '恢復預設風控設定？',
+    message: '目前自訂的風險限制將被預設值取代。',
+    confirmLabel: '恢復預設值',
+    tone: 'danger',
+  })
 
   if (!confirmed) {
     return

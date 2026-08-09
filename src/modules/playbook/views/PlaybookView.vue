@@ -7,6 +7,7 @@ import NewPlaybookModal from '../components/NewPlaybookModal.vue'
 import PlaybookDetailModal from '../components/PlaybookDetailModal.vue'
 
 import { usePlaybookStore } from '@/stores/usePlaybookStore'
+import { useConfirmDialogStore } from '@/stores/useConfirmDialogStore'
 import { useNotificationStore } from '@/stores/useNotificationStore'
 import PlaybookPerformanceSummaryCard from '../components/PlaybookPerformanceSummaryCard.vue'
 import SignalLibraryPanel from '../components/SignalLibraryPanel.vue'
@@ -18,6 +19,7 @@ import type {
 } from '@/types/playbook'
 
 const playbookStore = usePlaybookStore()
+const confirmDialog = useConfirmDialogStore()
 const notificationStore = useNotificationStore()
 
 const {
@@ -200,13 +202,16 @@ const updatePlaybook = (
   })
 }
 
-const removePlaybook = (
+const removePlaybook = async (
   playbookId: string,
   playbookName: string,
-): void => {
-  const confirmed = window.confirm(
-    `確定要刪除「${playbookName}」嗎？`,
-  )
+): Promise<void> => {
+  const confirmed = await confirmDialog.ask({
+    title: `刪除「${playbookName}」？`,
+    message: '這個交易策略將從策略庫移除，此操作無法復原。',
+    confirmLabel: '確認刪除',
+    tone: 'danger',
+  })
 
   if (!confirmed) {
     return

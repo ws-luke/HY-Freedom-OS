@@ -3,6 +3,7 @@ import { computed, nextTick, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 
 import MissionControlIcon from './MissionControlIcon.vue'
+import { useConfirmDialogStore } from '@/stores/useConfirmDialogStore'
 
 import type { DashboardTone } from '../composables/useMissionControlDashboard'
 import type { EconomicEvent } from '@/types/economic-calendar'
@@ -26,6 +27,7 @@ const props = defineProps<{
   restrictionActive: boolean
   loadingEvents: boolean
 }>()
+const confirmDialog = useConfirmDialogStore()
 
 const emit = defineEmits<{
   toggle: [missionId: string]
@@ -94,8 +96,14 @@ const saveEditing = (): void => {
   cancelEditing()
 }
 
-const removeMission = (mission: DailyMission): void => {
-  if (!window.confirm(`確定刪除「${mission.title}」？`)) return
+const removeMission = async (mission: DailyMission): Promise<void> => {
+  const confirmed = await confirmDialog.ask({
+    title: `刪除「${mission.title}」？`,
+    message: '這項今日任務會從執行清單中移除。',
+    confirmLabel: '確認刪除',
+    tone: 'danger',
+  })
+  if (!confirmed) return
 
   emit('remove', mission.id)
   if (editingMissionId.value === mission.id) {
@@ -103,8 +111,14 @@ const removeMission = (mission: DailyMission): void => {
   }
 }
 
-const resetMissions = (): void => {
-  if (!window.confirm('確定重設今天的所有任務？')) return
+const resetMissions = async (): Promise<void> => {
+  const confirmed = await confirmDialog.ask({
+    title: '重設今天的所有任務？',
+    message: '今日任務的完成狀態與自訂內容將恢復為預設值。',
+    confirmLabel: '確認重設',
+    tone: 'danger',
+  })
+  if (!confirmed) return
   emit('reset')
   cancelEditing()
 }

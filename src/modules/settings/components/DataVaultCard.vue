@@ -7,8 +7,10 @@ import {
   parseFreedomBackup,
   restoreFreedomBackup,
 } from '@/services/data-vault.service'
+import { useConfirmDialogStore } from '@/stores/useConfirmDialogStore'
 import type { FreedomDataBackup } from '@/services/data-vault.service'
 
+const confirmDialog = useConfirmDialogStore()
 const fileInput = ref<HTMLInputElement | null>(null)
 const pendingBackup = ref<FreedomDataBackup | null>(null)
 const errorMessage = ref('')
@@ -95,13 +97,16 @@ const handleFile = async (event: Event): Promise<void> => {
   }
 }
 
-const confirmRestore = (): void => {
+const confirmRestore = async (): Promise<void> => {
   const backup = pendingBackup.value
   if (!backup) return
 
-  const confirmed = window.confirm(
-    `確定要還原 ${formatDate(backup.exportedAt)} 的完整備份嗎？\n\n目前 Freedom OS 資料會被這份備份取代。`,
-  )
+  const confirmed = await confirmDialog.ask({
+    title: '還原完整備份？',
+    message: `將還原 ${formatDate(backup.exportedAt)} 的備份，目前 Freedom OS 資料會被這份備份取代。`,
+    confirmLabel: '確認還原',
+    tone: 'danger',
+  })
   if (!confirmed) return
 
   try {

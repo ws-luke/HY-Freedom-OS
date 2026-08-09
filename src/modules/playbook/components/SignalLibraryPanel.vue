@@ -4,10 +4,12 @@ import { storeToRefs } from 'pinia'
 
 import CloudMediaImage from '@/components/CloudMediaImage.vue'
 import { optimizeScreenshotFile } from '@/services/screenshot-optimization.service'
+import { useConfirmDialogStore } from '@/stores/useConfirmDialogStore'
 import { useSignalStore } from '@/stores/useSignalStore'
 import { useTradeStore } from '@/stores/useTradeStore'
 import type { SignalDirection, SignalInput, SignalRecord, SignalStatus } from '@/types/signal'
 
+const confirmDialog = useConfirmDialogStore()
 const signalStore = useSignalStore()
 const tradeStore = useTradeStore()
 const { sortedSignals } = storeToRefs(signalStore)
@@ -137,8 +139,14 @@ const saveSignal = (): void => {
   isEditorOpen.value = false
 }
 
-const removeSignal = (signal: SignalRecord): void => {
-  if (!window.confirm(`確定要刪除「${signal.name}」訊號嗎？舊交易中的訊號名稱仍會保留。`)) return
+const removeSignal = async (signal: SignalRecord): Promise<void> => {
+  const confirmed = await confirmDialog.ask({
+    title: `刪除「${signal.name}」訊號？`,
+    message: '訊號會從資料庫移除；舊交易紀錄中的訊號名稱仍會保留。',
+    confirmLabel: '確認刪除',
+    tone: 'danger',
+  })
+  if (!confirmed) return
   signalStore.removeSignal(signal.id)
 }
 </script>

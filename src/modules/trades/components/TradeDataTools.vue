@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useConfirmDialogStore } from '@/stores/useConfirmDialogStore'
 
 import type {
   TradeRecord,
@@ -14,6 +15,7 @@ interface TradeBackupFile {
 const props = defineProps<{
   trades: TradeRecord[]
 }>()
+const confirmDialog = useConfirmDialogStore()
 
 const emit = defineEmits<{
   import: [trades: TradeRecord[]]
@@ -374,7 +376,7 @@ const handleImportFile = (
 
   const reader = new FileReader()
 
-  reader.onload = () => {
+  reader.onload = async () => {
     try {
       if (
         typeof reader.result !== 'string'
@@ -400,10 +402,11 @@ const handleImportFile = (
         )
       }
 
-      const confirmed =
-        window.confirm(
-          `即將匯入 ${importedTrades.length} 筆交易。\n\n相同 ID 的交易會由後續資料覆蓋，確定繼續嗎？`,
-        )
+      const confirmed = await confirmDialog.ask({
+        title: `匯入 ${importedTrades.length} 筆交易？`,
+        message: '相同 ID 的交易會由匯入資料覆蓋，其他既有交易將保留。',
+        confirmLabel: '確認匯入',
+      })
 
       if (!confirmed) {
         return

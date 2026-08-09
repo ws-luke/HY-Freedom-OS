@@ -10,11 +10,14 @@ import CloudProductionHealthCard from '../components/CloudProductionHealthCard.v
 import PwaInstallCard from '../components/PwaInstallCard.vue'
 import ProductionRuntimeCard from '../components/ProductionRuntimeCard.vue'
 import { useTradeStore } from '@/stores/useTradeStore'
+import { useConfirmDialogStore } from '@/stores/useConfirmDialogStore'
 import { useNotificationStore } from '@/stores/useNotificationStore'
 import { useThemeStore } from '@/stores/useThemeStore'
 import type { TradeRecord } from '@/types/trade'
 
 const tradeStore = useTradeStore()
+const confirmDialog = useConfirmDialogStore()
+const notificationStore = useNotificationStore()
 const themeStore = useThemeStore()
 
 const {
@@ -27,38 +30,33 @@ const importTradeData = (
   const result =
     tradeStore.importTrades(importedTrades)
 
-  window.alert(
-    [
-      '交易資料匯入完成。',
-      `新增：${result.added} 筆`,
-      `更新：${result.updated} 筆`,
-      `目前總數：${result.total} 筆`,
-    ].join('\n'),
-  )
+  notificationStore.addNotification({
+    type: 'success',
+    title: '交易資料匯入完成',
+    message: `新增 ${result.added} 筆、更新 ${result.updated} 筆，目前共 ${result.total} 筆交易。`,
+    route: '/trades',
+  })
 }
 
-const resetTradeData = (): void => {
-  const confirmed = window.confirm(
-    [
-      '確定要重設所有交易資料嗎？',
-      '',
-      '目前交易紀錄將被預設範例資料取代。',
-      '建議先匯出 JSON 備份。',
-    ].join('\n'),
-  )
+const resetTradeData = async (): Promise<void> => {
+  const confirmed = await confirmDialog.ask({
+    title: '重設所有交易資料？',
+    message: '目前交易紀錄將被預設範例資料取代。建議先匯出 JSON 備份。',
+    confirmLabel: '確認重設',
+    tone: 'danger',
+  })
 
   if (!confirmed) {
     return
   }
-const notificationStore = useNotificationStore()
-tradeStore.resetTrades()
+  tradeStore.resetTrades()
 
-notificationStore.addNotification({
-  type: 'warning',
-  title: '交易資料已重設',
-  message: '所有交易紀錄已恢復為預設範例資料。',
-  route: '/trades',
-})
+  notificationStore.addNotification({
+    type: 'warning',
+    title: '交易資料已重設',
+    message: '所有交易紀錄已恢復為預設範例資料。',
+    route: '/trades',
+  })
 }
 </script>
 

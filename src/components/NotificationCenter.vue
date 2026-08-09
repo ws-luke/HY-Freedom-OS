@@ -4,6 +4,7 @@ import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 
 import { useNotificationStore } from '@/stores/useNotificationStore'
+import { useConfirmDialogStore } from '@/stores/useConfirmDialogStore'
 
 import type {
   AppNotification,
@@ -12,6 +13,7 @@ import type {
 
 const notificationStore =
   useNotificationStore()
+const confirmDialog = useConfirmDialogStore()
 
 const router = useRouter()
 
@@ -157,16 +159,19 @@ const toggleReadStatus = (
   )
 }
 
-const clearAll = (): void => {
+const clearAll = async (): Promise<void> => {
   if (
     sortedNotifications.value.length === 0
   ) {
     return
   }
 
-  const confirmed = window.confirm(
-    '確定要清除所有通知嗎？',
-  )
+  const confirmed = await confirmDialog.ask({
+    title: '清除所有通知？',
+    message: '通知中心內的所有歷史訊息都會被移除，此操作無法復原。',
+    confirmLabel: '全部清除',
+    tone: 'danger',
+  })
 
   if (!confirmed) {
     return
