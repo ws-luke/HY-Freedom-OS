@@ -120,7 +120,10 @@ router.beforeEach(async to => {
   try { session = await getCloudSession() }
   catch { session = null }
 
-  if (to.name === 'login') return session ? { name: 'mission-control' } : true
+  if (to.name === 'login') {
+    const resettingPassword = to.query.mode === 'reset'
+    return session && !resettingPassword ? { name: 'mission-control' } : true
+  }
   if (!session) {
     return { name: 'login', query: { redirect: to.fullPath } }
   }

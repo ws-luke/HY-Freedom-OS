@@ -6,7 +6,6 @@ import {
   onCloudAuthStateChange,
   signInWithPassword,
   signOutCloud,
-  signUpWithPassword,
 } from '@/services/cloud/cloud-auth.service'
 import {
   getCloudSyncRecord,
@@ -19,10 +18,7 @@ import type {
   FreedomCloudSyncSummary,
 } from '@/types/cloud'
 
-type AccountMode = 'login' | 'signup'
-
 const runtime = getCloudRuntime()
-const mode = ref<AccountMode>('login')
 const loading = ref(false)
 const syncing = ref(false)
 const identity = ref<FreedomCloudIdentity | null>(null)
@@ -75,11 +71,6 @@ const clearMessages = (): void => {
   errorMessage.value = ''
 }
 
-const selectMode = (nextMode: AccountMode): void => {
-  mode.value = nextMode
-  clearMessages()
-}
-
 const submitAccount = async (): Promise<void> => {
   if (!runtime.configured || !isValid.value || loading.value) return
 
@@ -87,19 +78,9 @@ const submitAccount = async (): Promise<void> => {
   clearMessages()
 
   try {
-    if (mode.value === 'signup') {
-      await signUpWithPassword(form.email.trim(), form.password)
-      identity.value = await getCloudIdentity()
-
-      successMessage.value = identity.value
-        ? '帳號已建立並登入 Freedom Cloud。'
-        : '帳號已建立。若 Supabase 啟用 Email 驗證，完成驗證後即可登入。'
-    }
-    else {
-      await signInWithPassword(form.email.trim(), form.password)
-      identity.value = await getCloudIdentity()
-      successMessage.value = '已登入 Freedom Cloud。'
-    }
+    await signInWithPassword(form.email.trim(), form.password)
+    identity.value = await getCloudIdentity()
+    successMessage.value = '已登入 Freedom Cloud。'
 
     form.password = ''
   }
@@ -221,23 +202,9 @@ onUnmounted(() => {
 
     <div v-else-if="!identity" class="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_320px] sm:p-6">
       <form class="rounded-2xl border border-white/[0.06] bg-black/15 p-5" @submit.prevent="submitAccount">
-        <div class="grid grid-cols-2 gap-2 rounded-xl bg-zinc-950/70 p-1">
-          <button
-            type="button"
-            class="rounded-lg px-3 py-2 text-xs font-medium transition"
-            :class="mode === 'login' ? 'bg-sky-400/10 text-sky-300' : 'text-zinc-600'"
-            @click="selectMode('login')"
-          >
-            登入
-          </button>
-          <button
-            type="button"
-            class="rounded-lg px-3 py-2 text-xs font-medium transition"
-            :class="mode === 'signup' ? 'bg-violet-400/10 text-violet-300' : 'text-zinc-600'"
-            @click="selectMode('signup')"
-          >
-            建立帳號
-          </button>
+        <div class="rounded-xl border border-sky-400/10 bg-sky-400/[0.04] px-4 py-3">
+          <p class="text-xs font-medium text-sky-300">PRIVATE ACCESS</p>
+          <p class="mt-1 text-xs leading-5 text-zinc-600">Freedom Cloud 目前只開放既有帳號登入。</p>
         </div>
 
         <label class="mt-5 block">
@@ -257,7 +224,7 @@ onUnmounted(() => {
           <input
             v-model="form.password"
             type="password"
-            :autocomplete="mode === 'signup' ? 'new-password' : 'current-password'"
+            autocomplete="current-password"
             minlength="8"
             required
             class="mt-2 w-full rounded-xl border border-zinc-800 bg-zinc-950/70 px-4 py-3 text-sm text-zinc-200 outline-none transition focus:border-sky-400/30"
@@ -270,7 +237,7 @@ onUnmounted(() => {
           :disabled="!isValid || loading"
           class="mt-5 w-full rounded-xl bg-sky-300 px-4 py-3 text-sm font-semibold text-zinc-950 transition hover:bg-sky-200 disabled:cursor-not-allowed disabled:bg-zinc-800 disabled:text-zinc-600"
         >
-          {{ loading ? '處理中…' : mode === 'login' ? '登入 Freedom Cloud' : '建立 Freedom Account' }}
+          {{ loading ? '處理中…' : '登入 Freedom Cloud' }}
         </button>
       </form>
 

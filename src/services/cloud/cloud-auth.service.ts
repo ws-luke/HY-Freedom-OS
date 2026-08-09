@@ -1,4 +1,4 @@
-import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js'
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 
 import { supabase } from './supabase.client'
 import type { FreedomCloudIdentity } from '@/types/cloud'
@@ -29,16 +29,6 @@ export const getCloudIdentity = async (): Promise<FreedomCloudIdentity | null> =
   }
 }
 
-export const signUpWithPassword = async (
-  email: string,
-  password: string,
-): Promise<User | null> => {
-  const client = requireClient()
-  const { data, error } = await client.auth.signUp({ email, password })
-  if (error) throw error
-  return data.user
-}
-
 export const signInWithPassword = async (
   email: string,
   password: string,
@@ -47,6 +37,19 @@ export const signInWithPassword = async (
   const { data, error } = await client.auth.signInWithPassword({ email, password })
   if (error) throw error
   return data.session
+}
+
+export const requestPasswordReset = async (email: string): Promise<void> => {
+  const client = requireClient()
+  const redirectTo = `${window.location.origin}/login?mode=reset`
+  const { error } = await client.auth.resetPasswordForEmail(email, { redirectTo })
+  if (error) throw error
+}
+
+export const updateCloudPassword = async (password: string): Promise<void> => {
+  const client = requireClient()
+  const { error } = await client.auth.updateUser({ password })
+  if (error) throw error
 }
 
 export const signOutCloud = async (): Promise<void> => {
@@ -67,8 +70,9 @@ export const onCloudAuthStateChange = (
 export const cloudAuthService = {
   getSession: getCloudSession,
   getIdentity: getCloudIdentity,
-  signUpWithPassword,
   signInWithPassword,
+  requestPasswordReset,
+  updateCloudPassword,
   signOut: signOutCloud,
   onAuthStateChange: onCloudAuthStateChange,
 }
