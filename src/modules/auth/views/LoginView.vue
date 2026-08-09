@@ -99,15 +99,17 @@ const submit = async (): Promise<void> => {
     <div class="relative mx-auto grid min-h-screen w-full max-w-6xl items-center gap-12 px-5 py-16 lg:grid-cols-[1fr_440px] lg:px-10">
       <section class="hidden lg:block">
         <div class="flex items-center gap-4">
-          <img src="/pwa-192.png" alt="Freedom OS" class="h-16 w-16 rounded-2xl shadow-2xl shadow-sky-500/10" />
+          <div class="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl border border-white/10 bg-zinc-950 shadow-2xl shadow-sky-500/10">
+            <img src="/freedom-os-icon.svg" alt="Freedom OS" class="block h-full w-full object-contain" />
+          </div>
           <div>
-            <p class="text-xs font-semibold tracking-[0.26em] text-sky-300">HY FREEDOM OS</p>
-            <h1 class="mt-1 text-3xl font-semibold tracking-tight text-zinc-100">Your Trading Operating System.</h1>
+            <p class="text-xs font-semibold tracking-[0.26em] text-sky-300">HY 自由交易系統</p>
+            <h1 class="mt-1 max-w-2xl text-3xl font-semibold tracking-tight text-zinc-100">把每一筆交易，變成下一次進步的證據。</h1>
           </div>
         </div>
-        <p class="mt-8 max-w-xl text-base leading-8 text-zinc-500">交易帳戶、MT5 紀錄、交易計畫、復盤、策略與 Analytics，都回到同一個 Freedom Account。</p>
+        <p class="mt-8 max-w-xl text-base leading-8 text-zinc-500">從盤前規劃、MT5 交易紀錄到盤後復盤，讓數據替你留下軌跡，讓紀律帶你走向真正的自由。</p>
         <div class="mt-10 grid max-w-xl grid-cols-3 gap-3">
-          <div v-for="item in [['CLOUD', 'Supabase'], ['DATA', 'RLS Protected'], ['ACCESS', 'Private']]" :key="item[0]" class="rounded-2xl border border-white/[0.06] bg-white/[0.025] p-4">
+          <div v-for="item in [['帳戶整合', '交易集中管理'], ['雲端保護', '資料安全同步'], ['紀律成長', '用復盤累積優勢']]" :key="item[0]" class="rounded-2xl border border-white/[0.06] bg-white/[0.025] p-4">
             <p class="text-[10px] font-semibold tracking-[0.16em] text-zinc-600">{{ item[0] }}</p>
             <p class="mt-2 text-sm font-medium text-zinc-300">{{ item[1] }}</p>
           </div>
@@ -115,8 +117,8 @@ const submit = async (): Promise<void> => {
       </section>
 
       <section class="rounded-[28px] border border-white/[0.07] bg-zinc-900/70 p-5 shadow-2xl shadow-black/30 backdrop-blur-xl sm:p-7">
-        <div class="lg:hidden"><img src="/pwa-192.png" alt="Freedom OS" class="h-12 w-12 rounded-xl" /></div>
-        <p class="mt-5 text-[11px] font-semibold tracking-[0.2em] text-violet-400 lg:mt-0">FREEDOM ACCOUNT</p>
+        <div class="grid h-12 w-12 place-items-center overflow-hidden rounded-xl border border-white/10 bg-zinc-950 lg:hidden"><img src="/freedom-os-icon.svg" alt="Freedom OS" class="block h-full w-full object-contain" /></div>
+        <p class="mt-5 text-[11px] font-semibold tracking-[0.2em] text-violet-400 lg:mt-0">私人交易工作區</p>
         <h2 class="mt-2 text-2xl font-semibold text-zinc-100">
           {{ mode === 'forgot' ? '找回登入密碼' : mode === 'reset' ? '設定新密碼' : '登入 Freedom OS' }}
         </h2>
@@ -151,7 +153,7 @@ const submit = async (): Promise<void> => {
         <button v-else-if="mode === 'forgot'" type="button" class="mt-4 w-full text-center text-xs text-zinc-500 transition hover:text-sky-300" @click="changeMode('login')">返回登入</button>
 
         <div v-if="errorMessage || successMessage" class="mt-4 rounded-xl border px-4 py-3 text-xs leading-5" :class="errorMessage ? 'border-rose-400/15 bg-rose-400/[0.04] text-rose-300' : 'border-emerald-400/15 bg-emerald-400/[0.04] text-emerald-300'">{{ errorMessage || successMessage }}</div>
-        <p class="mt-6 text-center text-[11px] text-zinc-700">Freedom OS · Private trading workspace</p>
+        <p class="mt-6 text-center text-[11px] text-zinc-700">Freedom OS · 讓紀律成為自由的起點</p>
       </section>
     </div>
   </main>
