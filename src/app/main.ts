@@ -12,6 +12,24 @@ import '@/styles/main.css'
 
 const app = createApp(App)
 const pinia = createPinia()
+const bootStartedAt = performance.now()
+
+const dismissBootSplash = (): void => {
+  const splash = document.getElementById('hy-boot-splash')
+  if (!splash) return
+
+  const minimumVisibleMs = 650
+  const remainingMs = Math.max(0, minimumVisibleMs - (performance.now() - bootStartedAt))
+
+  window.setTimeout(() => {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        splash.classList.add('hy-boot-splash--leaving')
+        window.setTimeout(() => splash.remove(), 450)
+      })
+    })
+  }, remainingMs)
+}
 
 app.use(pinia)
 app.use(router)
@@ -58,3 +76,5 @@ if (
 }
 
 app.mount('#app')
+
+void router.isReady().finally(dismissBootSplash)

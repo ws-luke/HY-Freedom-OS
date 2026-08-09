@@ -11,7 +11,7 @@ import MobileNavigation from '@/components/MobileNavigation.vue'
     <div class="min-h-screen lg:pl-64">
       <AppHeader />
 
-      <main class="px-4 pb-28 pt-4 sm:px-6 lg:px-8 lg:pb-10">
+      <main class="hy-main-content px-4 pt-4 sm:px-6 lg:px-8">
         <div class="mx-auto w-full max-w-[1800px]">
           <RouterView />
         </div>

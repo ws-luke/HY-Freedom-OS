@@ -26,7 +26,7 @@ watch(() => route.fullPath, () => { open.value = false })
     </Transition>
 
     <Transition enter-active-class="transition duration-200" enter-from-class="translate-y-full" leave-active-class="transition duration-150" leave-to-class="translate-y-full">
-      <section v-if="open" class="fixed inset-x-3 bottom-20 z-50 max-h-[70vh] overflow-y-auto rounded-3xl border border-zinc-800 bg-zinc-950/95 p-4 shadow-2xl shadow-black/60 backdrop-blur-xl lg:hidden">
+      <section v-if="open" class="hy-mobile-nav-sheet fixed inset-x-3 z-50 max-h-[70vh] overflow-y-auto rounded-3xl border border-zinc-800 bg-zinc-950/95 p-4 shadow-2xl shadow-black/60 backdrop-blur-xl lg:hidden">
         <div class="mb-3 flex items-center justify-between px-2">
           <div>
             <p class="text-[10px] font-semibold uppercase tracking-[0.16em] text-sky-400">Freedom OS</p>
@@ -49,7 +49,7 @@ watch(() => route.fullPath, () => { open.value = false })
     </Transition>
   </Teleport>
 
-  <nav class="hy-mobile-nav fixed inset-x-0 bottom-0 z-50 border-t px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl lg:hidden">
+  <nav class="hy-mobile-nav fixed z-50 backdrop-blur-xl lg:hidden" aria-label="手機主要導覽">
     <div class="mx-auto grid max-w-lg grid-cols-5 gap-1">
       <RouterLink
         v-for="item in primary"
