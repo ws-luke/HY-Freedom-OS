@@ -1,5 +1,5 @@
 import type { AccountTransactionType } from './account'
-import type { TradeDirection, TradePositionStatus } from './trade'
+import type { TradeDirection, TradeExitReason, TradePositionStatus } from './trade'
 
 export const BROKER_SYNC_SCHEMA_VERSION = 1 as const
 
@@ -20,6 +20,7 @@ export interface BrokerSyncedTrade {
   symbol: string
   direction: TradeDirection
   positionStatus: TradePositionStatus
+  exitReason?: TradeExitReason | null
   entryPrice: number
   exitPrice: number | null
   stopLoss: number | null

@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 
 
 APP_NAME = "Freedom MT5 Sync Service"
-APP_VERSION = "1.6.1"
+APP_VERSION = "1.6.2"
 SCHEMA_VERSION = 1
 SYNC_LOCK = threading.Lock()
 CRYPTPROTECT_UI_FORBIDDEN = 0x01
@@ -821,6 +821,24 @@ def _deal_is_exit(deal: Any) -> bool:
     )
 
 
+def _exit_reason(exit_deals: list[Any]) -> str | None:
+    """Return MT5's authoritative close reason when the broker provides it."""
+    if not exit_deals:
+        return None
+
+    reason = getattr(exit_deals[-1], "reason", None)
+    if reason == getattr(mt5, "DEAL_REASON_TP", object()):
+        return "take-profit"
+    if reason == getattr(mt5, "DEAL_REASON_SL", object()):
+        return "stop-loss"
+
+    return "manual"
+
+
+def _money(value: Any) -> float:
+    return round(_number(value), 2)
+
+
 def _weighted_price(deals: list[Any]) -> float:
     volume = sum(_number(getattr(deal, "volume", 0)) for deal in deals)
     if volume <= 0:
@@ -940,10 +958,10 @@ def _normalize_position(
         tp = _number(getattr(current_position, "tp", 0)) or tp
 
     profit_deals = deals
-    gross_profit = sum(_number(getattr(deal, "profit", 0)) for deal in profit_deals)
-    commission = sum(_number(getattr(deal, "commission", 0)) for deal in profit_deals)
-    swap = sum(_number(getattr(deal, "swap", 0)) for deal in profit_deals)
-    fee = sum(_number(getattr(deal, "fee", 0)) for deal in profit_deals)
+    gross_profit = _money(sum(_number(getattr(deal, "profit", 0)) for deal in profit_deals))
+    commission = _money(sum(_number(getattr(deal, "commission", 0)) for deal in profit_deals))
+    swap = _money(sum(_number(getattr(deal, "swap", 0)) for deal in profit_deals))
+    fee = _money(sum(_number(getattr(deal, "fee", 0)) for deal in profit_deals))
 
     exit_price = None if is_open or not exit_deals else _weighted_price(exit_deals)
     closed_at = None
@@ -960,6 +978,7 @@ def _normalize_position(
         "symbol": str(getattr(first_entry, "symbol", "")),
         "direction": direction,
         "positionStatus": "open" if is_open else "closed",
+        "exitReason": None if is_open else _exit_reason(exit_deals),
         "entryPrice": _weighted_price(entry_deals),
         "exitPrice": exit_price,
         "stopLoss": sl or None,
@@ -1006,7 +1025,7 @@ def _normalize_cashflows(deals: list[Any], synced_at: str) -> list[dict[str, Any
             "externalId": f"mt5:cashflow:{ticket}",
             "occurredAt": _iso_from_seconds(getattr(deal, "time", None)) or synced_at,
             "type": cashflow_type,
-            "amount": _number(getattr(deal, "profit", 0)),
+            "amount": _money(getattr(deal, "profit", 0)),
             "balanceAfter": None,
             "reference": ticket,
         })
@@ -1099,8 +1118,8 @@ def _sync(request: SyncRequest) -> dict[str, Any]:
                 "cursor": synced_at,
                 "account": {
                     "startingBalance": _detect_starting_balance(list(recent_deals)),
-                    "balance": _number(getattr(info, "balance", 0)),
-                    "equity": _number(getattr(info, "equity", 0)),
+                    "balance": _money(getattr(info, "balance", 0)),
+                    "equity": _money(getattr(info, "equity", 0)),
                     "currency": str(getattr(info, "currency", "USD") or "USD"),
                 },
                 "trades": normalized_trades,

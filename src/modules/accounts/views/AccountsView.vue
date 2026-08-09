@@ -21,6 +21,7 @@ import { useAccountStore } from '@/stores/useAccountStore'
 import { useConfirmDialogStore } from '@/stores/useConfirmDialogStore'
 import { useNotificationStore } from '@/stores/useNotificationStore'
 import { useTradeStore } from '@/stores/useTradeStore'
+import { useTradeReviewStore } from '@/stores/useTradeReviewStore'
 
 import type {
   AccountTransaction,
@@ -53,6 +54,7 @@ const accountStore = useAccountStore()
 const confirmDialog = useConfirmDialogStore()
 const notificationStore = useNotificationStore()
 const tradeStore = useTradeStore()
+const tradeReviewStore = useTradeReviewStore()
 
 const {
   activeAccounts,
@@ -63,6 +65,11 @@ const {
 const {
   sortedTrades,
 } = storeToRefs(tradeStore)
+
+const orphanedAccountTrades = computed(() => {
+  const accountIds = new Set(sortedAccounts.value.map(account => account.id))
+  return sortedTrades.value.filter(trade => Boolean(trade.accountId) && !accountIds.has(trade.accountId as string))
+})
 
 const selectedAccountId = ref<string | null>(
   sortedAccounts.value[0]?.id ?? null,
@@ -395,27 +402,58 @@ const deleteAccount = async (
     accountStore.getTransactionsByAccountId(
       account.id,
     ).length
-  const tradeCount = sortedTrades.value.filter(
+  const linkedTrades = sortedTrades.value.filter(
     trade =>
       trade.accountId === account.id ||
       (!trade.accountId &&
         trade.account.trim().toLowerCase() ===
           account.name.trim().toLowerCase()),
-  ).length
+  )
+  const reviewCount = linkedTrades.filter(trade => tradeReviewStore.hasReview(trade.id)).length
   const confirmed = await confirmDialog.ask({
     title: `刪除「${account.name}」？`,
-    message: `將一併刪除 ${transactionCount} 筆資金流水；${tradeCount} 筆既有交易紀錄會保留，但不再連結此帳戶。`,
+    message: `將永久刪除這個帳戶、${transactionCount} 筆資金流水、${linkedTrades.length} 筆交易紀錄與 ${reviewCount} 筆復盤；相關截圖也會從雲端清除。此操作無法復原。`,
     confirmLabel: '確認刪除',
     tone: 'danger',
   })
 
   if (!confirmed) return
 
+  linkedTrades.forEach(trade => {
+    tradeReviewStore.removeReviewByTradeId(trade.id)
+    tradeStore.removeTrade(trade.id)
+  })
   accountStore.removeAccount(account.id)
   notificationStore.addNotification({
     type: 'warning',
     title: '帳戶已刪除',
-    message: `${account.name} 與其資金流水已移除。`,
+    message: `${account.name}、${transactionCount} 筆資金流水、${linkedTrades.length} 筆交易與 ${reviewCount} 筆復盤已移除。`,
+    route: '/accounts',
+  })
+}
+
+const cleanupOrphanedTrades = async (): Promise<void> => {
+  const targets = [...orphanedAccountTrades.value]
+  if (!targets.length) return
+
+  const reviewCount = targets.filter(trade => tradeReviewStore.hasReview(trade.id)).length
+  const confirmed = await confirmDialog.ask({
+    title: '清除已刪除帳戶的殘留資料？',
+    message: `將永久刪除 ${targets.length} 筆失去帳戶連結的交易、${reviewCount} 筆復盤及相關截圖。此操作無法復原。`,
+    confirmLabel: '清除殘留資料',
+    tone: 'danger',
+  })
+  if (!confirmed) return
+
+  targets.forEach(trade => {
+    tradeReviewStore.removeReviewByTradeId(trade.id)
+    tradeStore.removeTrade(trade.id)
+  })
+
+  notificationStore.addNotification({
+    type: 'success',
+    title: '帳戶殘留資料已清除',
+    message: `已移除 ${targets.length} 筆交易與 ${reviewCount} 筆復盤。`,
     route: '/accounts',
   })
 }
@@ -604,6 +642,25 @@ watch(
           · {{ group.accounts }} 帳戶
         </span>
       </div>
+    </section>
+
+    <section
+      v-if="orphanedAccountTrades.length"
+      class="flex flex-col gap-4 rounded-2xl border border-amber-500/20 bg-amber-500/[0.06] p-5 sm:flex-row sm:items-center sm:justify-between"
+    >
+      <div>
+        <p class="font-semibold text-amber-300">發現已刪除帳戶的殘留交易</p>
+        <p class="mt-1 text-sm leading-6 text-zinc-500">
+          有 {{ orphanedAccountTrades.length }} 筆交易仍指向已不存在的帳戶，可安全一併清除。
+        </p>
+      </div>
+      <button
+        type="button"
+        class="shrink-0 rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-2.5 text-sm font-medium text-amber-300 transition hover:border-amber-400/40 hover:bg-amber-500/15"
+        @click="cleanupOrphanedTrades"
+      >
+        清除殘留資料
+      </button>
     </section>
 
     <BrokerCloudBridgeCard

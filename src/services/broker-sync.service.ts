@@ -17,6 +17,8 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const finiteNumber = (value: unknown): boolean =>
   typeof value === 'number' && Number.isFinite(value)
 
+const roundMoney = (value: number): number => Number(value.toFixed(2))
+
 const validTrade = (value: unknown): value is BrokerSyncedTrade => {
   if (!isRecord(value)) return false
 
@@ -26,6 +28,13 @@ const validTrade = (value: unknown): value is BrokerSyncedTrade => {
     typeof value.symbol === 'string' && Boolean(value.symbol.trim()) &&
     (value.direction === 'buy' || value.direction === 'sell') &&
     (value.positionStatus === 'open' || value.positionStatus === 'closed') &&
+    (
+      value.exitReason === undefined ||
+      value.exitReason === null ||
+      value.exitReason === 'take-profit' ||
+      value.exitReason === 'stop-loss' ||
+      value.exitReason === 'manual'
+    ) &&
     finiteNumber(value.entryPrice) &&
     finiteNumber(value.lotSize) &&
     finiteNumber(value.grossProfit) &&
@@ -115,7 +124,7 @@ const mapSyncedTrade = (
   // Match the per-trade Profit column shown by MT5 History. Commission, swap
   // and fee remain available as separate broker fields instead of being hidden
   // inside the displayed trade P/L.
-  const displayedProfit = trade.grossProfit
+  const displayedProfit = roundMoney(trade.grossProfit)
   const exitPrice = trade.exitPrice ?? 0
   const stopLoss = trade.stopLoss ?? 0
   const takeProfit = trade.takeProfit ?? 0
@@ -139,7 +148,7 @@ const mapSyncedTrade = (
     status: 'waiting-review',
     positionStatus: trade.positionStatus,
     exitReason: trade.positionStatus === 'closed'
-      ? inferTradeExitReason(exitPrice, stopLoss, takeProfit)
+      ? trade.exitReason ?? inferTradeExitReason(exitPrice, stopLoss, takeProfit)
       : null,
     closedAt: trade.positionStatus === 'closed' ? trade.closedAt ?? syncedAt : null,
     signalId: null,
@@ -151,9 +160,9 @@ const mapSyncedTrade = (
     brokerDealId: trade.dealId,
     brokerPositionId: trade.positionId,
     brokerOrderId: trade.orderId,
-    commission: trade.commission,
-    swap: trade.swap,
-    fee: trade.fee,
+    commission: roundMoney(trade.commission),
+    swap: roundMoney(trade.swap),
+    fee: roundMoney(trade.fee),
     syncedAt,
     entryPrice: trade.entryPrice,
     exitPrice,
