@@ -38,7 +38,7 @@ const runCheck = (): void => {
 </script>
 
 <template>
-  <section class="overflow-hidden rounded-[1.8rem] border border-emerald-500/15 bg-[#101214] shadow-xl shadow-black/15">
+  <section class="overflow-hidden rounded-[1.8rem] border border-emerald-500/15 bg-zinc-900/70 shadow-xl shadow-black/15">
     <header class="flex flex-col gap-4 border-b border-white/[0.06] p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
       <div>
         <div class="flex flex-wrap items-center gap-2">
@@ -59,22 +59,22 @@ const runCheck = (): void => {
     </header>
 
     <div class="grid grid-cols-2 gap-px bg-white/[0.06] lg:grid-cols-4">
-      <div class="bg-[#101214] p-4 sm:p-5">
+      <div class="bg-zinc-900/70 p-4 sm:p-5">
         <p class="text-[9px] uppercase tracking-[0.12em] text-zinc-700">Ledger trades</p>
         <p class="mt-2 text-xl font-semibold text-zinc-200">{{ brokerReconciliationRuntime.ledgerTrades }}</p>
         <p class="mt-1 text-[10px] text-zinc-700">Journal MT5 {{ brokerReconciliationRuntime.localTrades }} 筆</p>
       </div>
-      <div class="bg-[#101214] p-4 sm:p-5">
+      <div class="bg-zinc-900/70 p-4 sm:p-5">
         <p class="text-[9px] uppercase tracking-[0.12em] text-zinc-700">Cashflows</p>
         <p class="mt-2 text-xl font-semibold text-sky-300">{{ brokerReconciliationRuntime.ledgerCashflows }}</p>
         <p class="mt-1 text-[10px] text-zinc-700">帳戶流水 {{ brokerReconciliationRuntime.localCashflows }} 筆</p>
       </div>
-      <div class="bg-[#101214] p-4 sm:p-5">
+      <div class="bg-zinc-900/70 p-4 sm:p-5">
         <p class="text-[9px] uppercase tracking-[0.12em] text-zinc-700">Auto repaired</p>
         <p class="mt-2 text-xl font-semibold" :class="brokerReconciliationRuntime.repaired ? 'text-amber-300' : 'text-emerald-300'">{{ brokerReconciliationRuntime.repaired }}</p>
         <p class="mt-1 text-[10px] text-zinc-700">本次核對安全補齊</p>
       </div>
-      <div class="bg-[#101214] p-4 sm:p-5">
+      <div class="bg-zinc-900/70 p-4 sm:p-5">
         <p class="text-[9px] uppercase tracking-[0.12em] text-zinc-700">Duplicates</p>
         <p class="mt-2 text-xl font-semibold" :class="brokerReconciliationRuntime.duplicates ? 'text-rose-300' : 'text-emerald-300'">{{ brokerReconciliationRuntime.duplicates }}</p>
         <p class="mt-1 text-[10px] text-zinc-700">不自動刪除，避免誤傷 Journal</p>
