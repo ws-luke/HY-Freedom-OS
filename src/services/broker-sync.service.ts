@@ -112,7 +112,10 @@ const mapSyncedTrade = (
   trade: BrokerSyncedTrade,
 ): TradeRecord => {
   const opened = splitTimestamp(trade.openedAt)
-  const netProfit = trade.grossProfit + trade.commission + trade.swap + trade.fee
+  // Match the per-trade Profit column shown by MT5 History. Commission, swap
+  // and fee remain available as separate broker fields instead of being hidden
+  // inside the displayed trade P/L.
+  const displayedProfit = trade.grossProfit
   const exitPrice = trade.exitPrice ?? 0
   const stopLoss = trade.stopLoss ?? 0
   const takeProfit = trade.takeProfit ?? 0
@@ -132,7 +135,7 @@ const mapSyncedTrade = (
     time: opened.time,
     symbol: trade.symbol.trim().toUpperCase(),
     direction: trade.direction,
-    result: resultFromProfit(netProfit),
+    result: resultFromProfit(displayedProfit),
     status: 'waiting-review',
     positionStatus: trade.positionStatus,
     exitReason: trade.positionStatus === 'closed'
@@ -158,10 +161,10 @@ const mapSyncedTrade = (
     takeProfit,
     lotSize: trade.lotSize,
     riskAmount: metrics.supported ? metrics.riskAmount ?? 0 : 0,
-    profitLoss: netProfit,
+    profitLoss: displayedProfit,
     rMultiple:
       metrics.supported && metrics.riskAmount && metrics.riskAmount > 0
-        ? Number((netProfit / metrics.riskAmount).toFixed(2))
+        ? Number((displayedProfit / metrics.riskAmount).toFixed(2))
         : 0,
     playbook: '',
     reason: '',

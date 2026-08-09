@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 
 
 APP_NAME = "Freedom MT5 Sync Service"
-APP_VERSION = "1.5.1"
+APP_VERSION = "1.6.0"
 SCHEMA_VERSION = 1
 SYNC_LOCK = threading.Lock()
 CRYPTPROTECT_UI_FORBIDDEN = 0x01
@@ -732,8 +732,11 @@ def _read_since(value: str | None) -> datetime:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
         if parsed.tzinfo is None:
             parsed = parsed.replace(tzinfo=timezone.utc)
-        # Small overlap makes incremental sync resilient to clock boundaries.
-        return parsed.astimezone(timezone.utc) - timedelta(minutes=10)
+        # Re-read a rolling seven-day window on every incremental cycle. Broker
+        # history can publish several position-closing deals together and a
+        # narrow cursor overlap may otherwise skip part of that batch. All
+        # records are idempotently upserted by external position/deal IDs.
+        return parsed.astimezone(timezone.utc) - timedelta(days=7)
     except ValueError:
         return datetime(2000, 1, 1, tzinfo=timezone.utc)
 

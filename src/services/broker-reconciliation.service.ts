@@ -67,7 +67,6 @@ const nearlyEqual = (a: number, b: number): boolean =>
   Math.abs(a - b) <= Math.max(0.000001, Math.abs(a) * 0.0000001)
 
 const coreTradeMismatch = (local: TradeRecord, broker: BrokerSyncedTrade): boolean => {
-  const netProfit = broker.grossProfit + broker.commission + broker.swap + broker.fee
   return (
     local.positionStatus !== broker.positionStatus ||
     local.symbol.trim().toUpperCase() !== broker.symbol.trim().toUpperCase() ||
@@ -78,7 +77,7 @@ const coreTradeMismatch = (local: TradeRecord, broker: BrokerSyncedTrade): boole
     !nearlyEqual(local.commission, broker.commission) ||
     !nearlyEqual(local.swap, broker.swap) ||
     !nearlyEqual(local.fee, broker.fee) ||
-    !nearlyEqual(local.profitLoss, netProfit)
+    !nearlyEqual(local.profitLoss, broker.grossProfit)
   )
 }
 

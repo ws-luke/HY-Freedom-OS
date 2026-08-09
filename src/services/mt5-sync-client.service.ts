@@ -11,7 +11,7 @@ const MT5_SYNC_BASE_URL = (
   import.meta.env.VITE_MT5_SYNC_URL || 'http://127.0.0.1:8765'
 ).replace(/\/$/, '')
 
-export const MT5_SYNC_MIN_AGENT_VERSION = '1.5.0'
+export const MT5_SYNC_MIN_AGENT_VERSION = '1.6.0'
 
 export interface Mt5AgentHealth {
   ok: boolean
@@ -163,7 +163,7 @@ const readErrorMessage = async (response: Response): Promise<string> => {
 export const syncMt5Account = async (
   account: TradingAccount,
   password: string | null,
-  options: { background?: boolean, rememberPassword?: boolean } = {},
+  options: { background?: boolean, rememberPassword?: boolean, fullHistory?: boolean } = {},
 ): Promise<BrokerSyncImportResult> => {
   if (account.dataSource !== 'mt5') {
     throw new Error('此帳戶不是 MT5 Sync 帳戶。')
@@ -193,9 +193,12 @@ export const syncMt5Account = async (
           server: account.brokerServer,
           password: password?.trim() || undefined,
           rememberPassword: options.background ? false : options.rememberPassword === true,
-          // If the baseline has not been discovered yet, request full history once
-          // so the service can identify the account's first balance/deposit record.
-          since: account.startingBalance > 0 ? account.lastSyncedAt : null,
+          // A user-triggered sync is an integrity/backfill operation and scans
+          // the complete broker history. Background cycles remain incremental;
+          // Agent 1.6 adds a safe rolling overlap to prevent batch-close gaps.
+          since: options.fullHistory === true || options.background !== true
+            ? null
+            : account.lastSyncedAt,
         }),
       },
       requestTimeout,
