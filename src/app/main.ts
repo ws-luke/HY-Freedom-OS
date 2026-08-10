@@ -8,6 +8,7 @@ import { isCloudAuthRequired } from '@/services/runtime-mode.service'
 import { useNotificationStore } from '@/stores/useNotificationStore'
 import { useThemeStore } from '@/stores/useThemeStore'
 import { usePwaStore } from '@/stores/usePwaStore'
+import { useAccessControlStore } from '@/stores/useAccessControlStore'
 import '@/styles/main.css'
 
 const app = createApp(App)
@@ -40,6 +41,9 @@ usePwaStore(pinia).initialize()
 
 if (isCloudAuthRequired()) {
   onCloudAuthStateChange((_event, session) => {
+    const accessStore = useAccessControlStore(pinia)
+    if (!session) accessStore.clear()
+    else void accessStore.load(true)
     const currentRoute = router.currentRoute.value
     if (!session && currentRoute.name !== 'login') {
       void router.replace({ name: 'login', query: { redirect: currentRoute.fullPath } })

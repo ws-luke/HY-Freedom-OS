@@ -1,6 +1,13 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import AccountSessionControl from '@/components/AccountSessionControl.vue'
 import { NAV_ITEMS } from '@/constants/navigation'
+import { useAccessControlStore } from '@/stores/useAccessControlStore'
+
+const accessStore = useAccessControlStore()
+const visibleItems = computed(() => NAV_ITEMS.filter(item =>
+  (!item.adminOnly || accessStore.isAdmin) && accessStore.canUse(item.featureKey),
+))
 </script>
 
 <template>
@@ -19,7 +26,7 @@ import { NAV_ITEMS } from '@/constants/navigation'
 
     <nav class="flex flex-1 flex-col gap-1 overflow-y-auto p-3">
       <RouterLink
-        v-for="item in NAV_ITEMS"
+        v-for="item in visibleItems"
         :key="item.name"
         :to="item.path"
         class="rounded-xl px-4 py-3 text-sm font-medium text-zinc-400 transition hover:bg-zinc-900 hover:text-zinc-100"

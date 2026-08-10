@@ -158,6 +158,26 @@ export const useTradeReviewStore = defineStore(
       )
     }
 
+    const reassignReviewTradeId = (
+      fromTradeId: string,
+      toTradeId: string,
+    ): void => {
+      if (!fromTradeId || !toTradeId || fromTradeId === toTradeId) return
+
+      const source = reviews.value.find(review => review.tradeId === fromTradeId)
+      if (!source) return
+
+      const target = reviews.value.find(review => review.tradeId === toTradeId)
+      if (target) {
+        queueCloudDeletion('trade_reviews', source.id)
+        reviews.value = reviews.value.filter(review => review.id !== source.id)
+        return
+      }
+
+      source.tradeId = toTradeId
+      source.updatedAt = new Date().toISOString()
+    }
+
     const resetReviews = (): void => {
       reviews.value.forEach(review => queueCloudDeletion('trade_reviews', review.id))
       reviews.value = []
@@ -181,6 +201,7 @@ export const useTradeReviewStore = defineStore(
       saveReview,
       removeReview,
       removeReviewByTradeId,
+      reassignReviewTradeId,
       resetReviews,
     }
   },

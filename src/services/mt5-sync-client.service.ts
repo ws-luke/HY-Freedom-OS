@@ -163,7 +163,12 @@ const readErrorMessage = async (response: Response): Promise<string> => {
 export const syncMt5Account = async (
   account: TradingAccount,
   password: string | null,
-  options: { background?: boolean, rememberPassword?: boolean, fullHistory?: boolean } = {},
+  options: {
+    background?: boolean
+    rememberPassword?: boolean
+    fullHistory?: boolean
+    rebuildTrades?: boolean
+  } = {},
 ): Promise<BrokerSyncImportResult> => {
   if (account.dataSource !== 'mt5') {
     throw new Error('此帳戶不是 MT5 Sync 帳戶。')
@@ -210,7 +215,9 @@ export const syncMt5Account = async (
 
     const raw = await response.text()
     const payload = parseBrokerSyncPayload(raw)
-    const result = applyBrokerSyncPayload(payload)
+    const result = applyBrokerSyncPayload(payload, {
+      replaceAccountTrades: options.rebuildTrades === true,
+    })
     runtime.status = 'success'
     runtime.completedAt = new Date().toISOString()
     runtime.result = result

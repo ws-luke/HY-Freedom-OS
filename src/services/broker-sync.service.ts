@@ -2,6 +2,7 @@ import { calculateTradeMetrics } from './trade-calculation.service'
 import { inferTradeExitReason } from './trade-lifecycle.service'
 import { useAccountStore } from '@/stores/useAccountStore'
 import { useTradeStore } from '@/stores/useTradeStore'
+import { useTradeReviewStore } from '@/stores/useTradeReviewStore'
 import { BROKER_SYNC_SCHEMA_VERSION } from '@/types/broker-sync'
 
 import type {
@@ -187,9 +188,13 @@ const mapSyncedTrade = (
   }
 }
 
-export const applyBrokerSyncPayload = (payload: BrokerSyncPayload): BrokerSyncImportResult => {
+export const applyBrokerSyncPayload = (
+  payload: BrokerSyncPayload,
+  options: { replaceAccountTrades?: boolean } = {},
+): BrokerSyncImportResult => {
   const accountStore = useAccountStore()
   const tradeStore = useTradeStore()
+  const tradeReviewStore = useTradeReviewStore()
   const account = accountStore.getAccountById(payload.accountId)
 
   if (!account || account.dataSource !== 'mt5') {
@@ -201,6 +206,27 @@ export const applyBrokerSyncPayload = (payload: BrokerSyncPayload): BrokerSyncIm
     (account.brokerServer && account.brokerServer !== payload.brokerServer)
   ) {
     throw new Error('MT5 Login / Server 與 Freedom OS 帳戶設定不一致。')
+  }
+
+  if (options.replaceAccountTrades) {
+    const existingTrades = tradeStore.trades.filter(trade =>
+      trade.dataSource === 'mt5' &&
+      (
+        trade.accountId === account.id ||
+        (!trade.accountId && trade.account.trim().toLowerCase() === account.name.trim().toLowerCase())
+      ),
+    )
+
+    // Never destroy a populated local journal when MT5 unexpectedly returns
+    // an empty history because of a terminal/broker query problem.
+    if (existingTrades.length > 0 && payload.trades.length === 0) {
+      throw new Error('MT5 完整歷史回傳 0 筆，為保護既有資料，本次未執行重建。')
+    }
+
+    existingTrades.forEach(trade => {
+      tradeReviewStore.removeReviewByTradeId(trade.id)
+      tradeStore.removeTrade(trade.id)
+    })
   }
 
   let addedTrades = 0

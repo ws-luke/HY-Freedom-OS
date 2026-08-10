@@ -1,5 +1,5 @@
 import { getCloudIdentity } from './cloud-auth.service'
-import { flushCloudDeletionQueue } from './cloud-deletion.service'
+import { flushCloudDeletionQueue, queueCloudDeletion } from './cloud-deletion.service'
 import { listUserRows } from './cloud-database.service'
 import { migrateLocalDataToCloud } from './cloud-migration.service'
 import type { StoredAccountLedgerState } from '@/types/account'
@@ -100,6 +100,53 @@ const mergeById = <T extends { id: string; updatedAt?: string }>(
   })
 
   return [...merged.values()]
+}
+
+const tradeJournalScore = (trade: TradeRecord, reviewTradeIds: Set<string>): number =>
+  (reviewTradeIds.has(trade.id) ? 1000 : 0) +
+  (trade.beforeScreenshot ? 100 : 0) +
+  (trade.afterScreenshot ? 100 : 0) +
+  (trade.signalId || trade.signal ? 40 : 0) +
+  (trade.playbook ? 40 : 0) +
+  (trade.reason ? 30 : 0) +
+  (trade.status === 'completed' ? 20 : 0) +
+  (trade.isFavorite ? 10 : 0)
+
+const deduplicateMt5Trades = (
+  trades: TradeRecord[],
+  reviewTradeIds: Set<string>,
+): { trades: TradeRecord[], aliases: Map<string, string> } => {
+  const aliases = new Map<string, string>()
+  const groups = new Map<string, TradeRecord[]>()
+  const passthrough: TradeRecord[] = []
+
+  trades.forEach(trade => {
+    if (trade.dataSource !== 'mt5' || !trade.externalId) {
+      passthrough.push(trade)
+      return
+    }
+    const accountKey = trade.accountId || trade.account.trim().toLowerCase()
+    const key = `${accountKey}:${trade.externalId}`
+    const group = groups.get(key) ?? []
+    group.push(trade)
+    groups.set(key, group)
+  })
+
+  groups.forEach(group => {
+    const ranked = [...group].sort((a, b) =>
+      tradeJournalScore(b, reviewTradeIds) - tradeJournalScore(a, reviewTradeIds) ||
+      newestTimestamp(b.updatedAt) - newestTimestamp(a.updatedAt),
+    )
+    const winner = ranked[0]
+    if (!winner) return
+    passthrough.push(winner)
+    ranked.slice(1).forEach(duplicate => {
+      aliases.set(duplicate.id, winner.id)
+      queueCloudDeletion('trades', duplicate.id)
+    })
+  })
+
+  return { trades: passthrough, aliases }
 }
 
 const screenshotReference = (
@@ -407,7 +454,13 @@ const restoreSnapshot = async (
       updatedAt: text(row.updated_at),
     })
   }
-  writeJson(LOCAL_KEYS.trades, mergeById(localArray<TradeRecord>(LOCAL_KEYS.trades), cloudTrades))
+  const existingReviews = localArray<StoredTradeReview>(LOCAL_KEYS.reviews)
+  const mergedTrades = mergeById(localArray<TradeRecord>(LOCAL_KEYS.trades), cloudTrades)
+  const deduplicatedTrades = deduplicateMt5Trades(
+    mergedTrades,
+    new Set(existingReviews.map(review => review.tradeId)),
+  )
+  writeJson(LOCAL_KEYS.trades, deduplicatedTrades.trades)
 
   const cloudReviews = snapshot.reviews.flatMap(row => {
     const tradeId = tradeCloudToLocal.get(text(row.trade_id))
@@ -415,7 +468,7 @@ const restoreSnapshot = async (
 
     return [{
       id: row.local_id,
-      tradeId,
+      tradeId: deduplicatedTrades.aliases.get(tradeId) ?? tradeId,
       followedPlan: row.followed_plan === null ? null : boolean(row.followed_plan),
       followedPlaybook: row.followed_playbook === null ? null : boolean(row.followed_playbook),
       respectedRisk: row.respected_risk === null ? null : boolean(row.respected_risk),
@@ -434,7 +487,23 @@ const restoreSnapshot = async (
       updatedAt: text(row.updated_at),
     } satisfies StoredTradeReview]
   })
-  writeJson(LOCAL_KEYS.reviews, mergeById(localArray<StoredTradeReview>(LOCAL_KEYS.reviews), cloudReviews))
+  const mergedReviews = mergeById(existingReviews, cloudReviews)
+    .map(review => ({
+      ...review,
+      tradeId: deduplicatedTrades.aliases.get(review.tradeId) ?? review.tradeId,
+    }))
+  const reviewByTrade = new Map<string, StoredTradeReview>()
+  mergedReviews.forEach(review => {
+    const current = reviewByTrade.get(review.tradeId)
+    if (!current || newestTimestamp(review.updatedAt) >= newestTimestamp(current.updatedAt)) {
+      if (current && current.id !== review.id) queueCloudDeletion('trade_reviews', current.id)
+      reviewByTrade.set(review.tradeId, review)
+    }
+    else if (current.id !== review.id) {
+      queueCloudDeletion('trade_reviews', review.id)
+    }
+  })
+  writeJson(LOCAL_KEYS.reviews, [...reviewByTrade.values()])
 
   const newestPlan = [...snapshot.plans].sort((a, b) => text(b.updated_at).localeCompare(text(a.updated_at)))[0]
   if (newestPlan) {

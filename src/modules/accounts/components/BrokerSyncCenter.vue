@@ -11,6 +11,8 @@ import {
   syncMt5Account,
 } from '@/services/mt5-sync-client.service'
 import { useNotificationStore } from '@/stores/useNotificationStore'
+import { useConfirmDialogStore } from '@/stores/useConfirmDialogStore'
+import { useTradeStore } from '@/stores/useTradeStore'
 
 import type { TradingAccount } from '@/types/account'
 
@@ -24,9 +26,12 @@ const emit = defineEmits<{
 }>()
 
 const notificationStore = useNotificationStore()
+const confirmDialog = useConfirmDialogStore()
+const tradeStore = useTradeStore()
 const credentialStates = ref<Record<string, boolean | null>>({})
 const refreshing = ref(false)
 const syncingAll = ref(false)
+const rebuildingAccountId = ref<string | null>(null)
 let refreshTimer: number | null = null
 
 const mt5Accounts = computed(() =>
@@ -199,6 +204,51 @@ const syncAll = async (): Promise<void> => {
   }
 }
 
+const rebuildAccountTrades = async (account: TradingAccount): Promise<void> => {
+  if (rebuildingAccountId.value || account.syncStatus === 'syncing') return
+
+  const linkedTrades = tradeStore.trades.filter(trade =>
+    trade.dataSource === 'mt5' &&
+    (
+      trade.accountId === account.id ||
+      (!trade.accountId && trade.account.trim().toLowerCase() === account.name.trim().toLowerCase())
+    ),
+  )
+  const confirmed = await confirmDialog.ask({
+    title: `完整重建「${account.name}」交易？`,
+    message: `將以 MT5 全部歷史取代目前 ${linkedTrades.length} 筆同步交易，相關復盤與交易截圖也會清除。帳戶、入金、出金及手動交易不受影響。`,
+    confirmLabel: '完整重建',
+    tone: 'danger',
+  })
+  if (!confirmed) return
+
+  rebuildingAccountId.value = account.id
+  try {
+    const result = await syncMt5Account(account, null, {
+      fullHistory: true,
+      rebuildTrades: true,
+    })
+    notificationStore.addNotification({
+      type: 'success',
+      title: 'MT5 交易重建完成',
+      message: `${account.name} 已從最早歷史重新建立 ${result.addedTrades} 筆交易。`,
+      route: '/trades',
+    })
+  }
+  catch (error) {
+    notificationStore.addNotification({
+      type: 'danger',
+      title: 'MT5 交易重建未完成',
+      message: error instanceof Error ? error.message : '請確認 MT5 Agent 與帳戶連線後重試。',
+      route: '/accounts',
+    })
+  }
+  finally {
+    rebuildingAccountId.value = null
+    await refreshStatus()
+  }
+}
+
 onMounted(() => {
   void refreshStatus()
   refreshTimer = window.setInterval(() => { void refreshStatus() }, 10_000)
@@ -323,6 +373,14 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="flex gap-2 lg:justify-end">
+          <button
+            type="button"
+            class="rounded-lg border border-rose-400/15 bg-rose-400/[0.04] px-3 py-2 text-[10px] text-rose-300 transition hover:bg-rose-400/[0.09] disabled:cursor-not-allowed disabled:opacity-40"
+            :disabled="rebuildingAccountId !== null || account.syncStatus === 'syncing' || !mt5SyncRuntime.agentOnline || !agentCompatible || credentialStates[account.id] !== true"
+            @click="rebuildAccountTrades(account)"
+          >
+            {{ rebuildingAccountId === account.id ? '重建中…' : '完整重建' }}
+          </button>
           <button
             type="button"
             class="rounded-lg border border-white/[0.07] px-3 py-2 text-[10px] text-zinc-600 transition hover:text-zinc-300"

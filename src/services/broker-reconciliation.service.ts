@@ -5,6 +5,7 @@ import { isSupabaseConfigured, supabase } from './cloud/supabase.client'
 import { useAccountStore } from '@/stores/useAccountStore'
 import { useNotificationStore } from '@/stores/useNotificationStore'
 import { useTradeStore } from '@/stores/useTradeStore'
+import { useTradeReviewStore } from '@/stores/useTradeReviewStore'
 import type { BrokerSyncedTrade } from '@/types/broker-sync'
 import type { TradeRecord } from '@/types/trade'
 
@@ -81,6 +82,14 @@ const coreTradeMismatch = (local: TradeRecord, broker: BrokerSyncedTrade): boole
   )
 }
 
+const ledgerCanUpdateLocal = (local: TradeRecord | undefined, rowUpdatedAt: string): boolean => {
+  if (!local) return true
+  // A manual full-history rebuild is newer source-of-truth data. An older
+  // ledger row (including legacy net-of-commission payloads) must never roll
+  // that trade back to stale broker values.
+  return newestTimestamp(rowUpdatedAt) >= newestTimestamp(local.syncedAt)
+}
+
 const fetchAll = async (table: 'broker_trade_ledger' | 'broker_cashflow_ledger'): Promise<LedgerRow[]> => {
   if (!supabase) return []
   const rows: LedgerRow[] = []
@@ -106,6 +115,55 @@ const duplicateCount = (keys: string[]): number => {
   const counts = new Map<string, number>()
   keys.forEach(key => counts.set(key, (counts.get(key) ?? 0) + 1))
   return [...counts.values()].reduce((total, count) => total + Math.max(0, count - 1), 0)
+}
+
+const newestTimestamp = (value: string | null | undefined): number => {
+  if (!value) return 0
+  const timestamp = new Date(value).getTime()
+  return Number.isFinite(timestamp) ? timestamp : 0
+}
+
+const journalScore = (trade: TradeRecord, hasReview: boolean): number =>
+  (hasReview ? 1000 : 0) +
+  (trade.beforeScreenshot ? 100 : 0) +
+  (trade.afterScreenshot ? 100 : 0) +
+  (trade.signalId || trade.signal ? 40 : 0) +
+  (trade.playbook ? 40 : 0) +
+  (trade.reason ? 30 : 0) +
+  (trade.status === 'completed' ? 20 : 0) +
+  (trade.isFavorite ? 10 : 0)
+
+const removeSafeDuplicates = (
+  trades: TradeRecord[],
+): number => {
+  const tradeStore = useTradeStore()
+  const reviewStore = useTradeReviewStore()
+  const groups = new Map<string, TradeRecord[]>()
+
+  trades.forEach(trade => {
+    if (!trade.externalId) return
+    const group = groups.get(trade.externalId) ?? []
+    group.push(trade)
+    groups.set(trade.externalId, group)
+  })
+
+  let removed = 0
+  groups.forEach(group => {
+    if (group.length < 2) return
+    const ranked = [...group].sort((a, b) =>
+      journalScore(b, reviewStore.hasReview(b.id)) - journalScore(a, reviewStore.hasReview(a.id)) ||
+      newestTimestamp(b.updatedAt) - newestTimestamp(a.updatedAt),
+    )
+    const winner = ranked[0]
+    if (!winner) return
+
+    ranked.slice(1).forEach(duplicate => {
+      reviewStore.reassignReviewTradeId(duplicate.id, winner.id)
+      tradeStore.removeTrade(duplicate.id)
+      removed += 1
+    })
+  })
+  return removed
 }
 
 const reconcile = async (): Promise<void> => {
@@ -158,6 +216,7 @@ const reconcile = async (): Promise<void> => {
         const staleTrades = brokerTrades.filter(row => {
           const local = localTradeByExternal.get(row.external_id)
           if (!local) return false
+          if (!ledgerCanUpdateLocal(local, row.updated_at)) return false
           try {
             return coreTradeMismatch(local, row.payload as BrokerSyncedTrade)
           }
@@ -169,10 +228,16 @@ const reconcile = async (): Promise<void> => {
           duplicateCount(localTrades.flatMap(item => item.externalId ? [item.externalId] : [])) +
           duplicateCount(localCashflows.flatMap(item => item.externalId ? [item.externalId] : []))
 
+        const removedTradeDuplicates = removeSafeDuplicates(localTrades)
+
         const needsRepair = missingTrades.length + missingCashflows.length + staleTrades.length
         missingBeforeRepair += missingTrades.length + missingCashflows.length
         staleBeforeRepair += staleTrades.length
-        duplicates += accountDuplicates
+        duplicates += Math.max(0, accountDuplicates - removedTradeDuplicates)
+
+        const safeBrokerTrades = brokerTrades.filter(row =>
+          ledgerCanUpdateLocal(localTradeByExternal.get(row.external_id), row.updated_at),
+        )
 
         const payload = parseBrokerSyncPayload(JSON.stringify({
           schemaVersion: 1,
@@ -183,12 +248,12 @@ const reconcile = async (): Promise<void> => {
           syncedAt: snapshot.captured_at,
           cursor: snapshot.sync_cursor,
           account: snapshot.payload,
-          trades: brokerTrades.map(row => row.payload),
+          trades: safeBrokerTrades.map(row => row.payload),
           cashflows: brokerCashflows.map(row => row.payload),
         }))
 
         applyBrokerSyncPayload(payload)
-        repaired += needsRepair
+        repaired += needsRepair + removedTradeDuplicates
 
         accountStates[accountId] = {
           accountId,
@@ -198,8 +263,8 @@ const reconcile = async (): Promise<void> => {
           localCashflows: localCashflows.length + missingCashflows.length,
           missingBeforeRepair: missingTrades.length + missingCashflows.length,
           staleBeforeRepair: staleTrades.length,
-          duplicates: accountDuplicates,
-          repaired: needsRepair,
+          duplicates: Math.max(0, accountDuplicates - removedTradeDuplicates),
+          repaired: needsRepair + removedTradeDuplicates,
         }
       }
 

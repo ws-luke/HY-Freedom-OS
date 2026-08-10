@@ -1384,10 +1384,10 @@ const toggleTradeFavorite = (
               </div>
             </div>
 
-            <div class="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-5 xl:w-[680px]">
+            <div class="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-[minmax(150px,1.4fr)_repeat(4,minmax(100px,1fr))] xl:w-[740px]">
               <div class="rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2.5">
                 <p class="text-[10px] text-zinc-500">進場／離場</p>
-                <p class="mt-1 text-xs font-medium text-zinc-200">
+                <p class="mt-1 whitespace-nowrap text-xs font-medium text-zinc-200 tabular-nums">
                   {{ formatTradePrice(trade.entryPrice) }} → {{ formatTradePrice(trade.exitPrice) }}
                 </p>
               </div>

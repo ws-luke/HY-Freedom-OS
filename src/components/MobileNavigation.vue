@@ -1,14 +1,19 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
 import AccountSessionControl from '@/components/AccountSessionControl.vue'
 import { NAV_ITEMS } from '@/constants/navigation'
+import { useAccessControlStore } from '@/stores/useAccessControlStore'
 
 const route = useRoute()
 const open = ref(false)
 
-const primary = NAV_ITEMS.filter(item => ['mission-control', 'planning', 'trades', 'review'].includes(item.name))
+const accessStore = useAccessControlStore()
+const visibleItems = computed(() => NAV_ITEMS.filter(item =>
+  (!item.adminOnly || accessStore.isAdmin) && accessStore.canUse(item.featureKey),
+))
+const primary = computed(() => visibleItems.value.filter(item => ['mission-control', 'planning', 'trades', 'review'].includes(item.name)))
 
 const shortLabel: Record<string, string> = {
   'mission-control': '總控',
@@ -37,7 +42,7 @@ watch(() => route.fullPath, () => { open.value = false })
         </div>
         <nav class="grid grid-cols-2 gap-2">
           <RouterLink
-            v-for="item in NAV_ITEMS"
+            v-for="item in visibleItems"
             :key="item.name"
             :to="item.path"
             class="rounded-2xl border border-zinc-800 bg-zinc-900/60 px-4 py-3 text-sm font-medium text-zinc-400 transition"
