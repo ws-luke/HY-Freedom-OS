@@ -386,13 +386,13 @@ const handleCustomMistakeTagsChange = (
 
           <div class="space-y-6 p-6">
             <section
-              class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
+              class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5"
             >
               <div
                 class="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4"
               >
                 <p class="text-xs text-zinc-500">
-                  交易盈虧
+                  交易盈虧（不含手續費）
                 </p>
 
                 <p
@@ -403,6 +403,18 @@ const handleCustomMistakeTagsChange = (
                   <template v-else>
                     {{ trade.profitLoss > 0 ? '+' : '' }}{{ formatMoney(trade.profitLoss) }}
                   </template>
+                </p>
+              </div>
+
+              <div
+                class="rounded-2xl border border-violet-500/15 bg-violet-500/5 p-4"
+              >
+                <p class="text-xs text-violet-300/70">
+                  手續費
+                </p>
+
+                <p class="mt-2 text-2xl font-semibold text-violet-300">
+                  {{ formatMoney(trade.commission) }}
                 </p>
               </div>
 
@@ -470,7 +482,7 @@ const handleCustomMistakeTagsChange = (
                   {{ trade.syncedAt ? '已同步' : '等待同步' }}
                 </span>
               </div>
-              <div class="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              <div class="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
                 <div class="rounded-xl border border-zinc-800 bg-zinc-950/40 p-3">
                   <p class="text-[10px] text-zinc-600">POSITION ID</p>
                   <p class="mt-1 truncate text-xs text-zinc-300">{{ trade.brokerPositionId || '—' }}</p>
@@ -480,12 +492,16 @@ const handleCustomMistakeTagsChange = (
                   <p class="mt-1 truncate text-xs text-zinc-300">{{ trade.brokerDealId || '—' }}</p>
                 </div>
                 <div class="rounded-xl border border-zinc-800 bg-zinc-950/40 p-3">
-                  <p class="text-[10px] text-zinc-600">COMMISSION</p>
+                  <p class="text-[10px] text-zinc-600">手續費（獨立）</p>
                   <p class="mt-1 text-xs text-zinc-300">{{ formatMoney(trade.commission) }}</p>
                 </div>
                 <div class="rounded-xl border border-zinc-800 bg-zinc-950/40 p-3">
-                  <p class="text-[10px] text-zinc-600">SWAP / FEE</p>
-                  <p class="mt-1 text-xs text-zinc-300">{{ formatMoney(trade.swap + trade.fee) }}</p>
+                  <p class="text-[10px] text-zinc-600">隔夜利息</p>
+                  <p class="mt-1 text-xs text-zinc-300">{{ formatMoney(trade.swap) }}</p>
+                </div>
+                <div class="rounded-xl border border-zinc-800 bg-zinc-950/40 p-3">
+                  <p class="text-[10px] text-zinc-600">其他費用</p>
+                  <p class="mt-1 text-xs text-zinc-300">{{ formatMoney(trade.fee) }}</p>
                 </div>
               </div>
             </section>

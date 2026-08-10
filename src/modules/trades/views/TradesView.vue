@@ -300,6 +300,11 @@ const filteredStatistics = computed(() => {
     0,
   )
 
+  const totalCommission = closedTrades.reduce(
+    (total, trade) => total + trade.commission,
+    0,
+  )
+
   const totalR = closedTrades.reduce(
     (total, trade) =>
       total + trade.rMultiple,
@@ -323,6 +328,7 @@ const filteredStatistics = computed(() => {
           )
         : 0,
     totalProfitLoss,
+    totalCommission,
     averageR:
       closedTradeCount > 0
         ? Number(
@@ -831,7 +837,7 @@ const toggleTradeFavorite = (
     </section>
 
     <div
-      class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
+      class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5"
     >
       <section
         class="rounded-3xl border border-zinc-800 bg-zinc-900/70 p-5"
@@ -898,7 +904,7 @@ const toggleTradeFavorite = (
         class="rounded-3xl border border-zinc-800 bg-zinc-900/70 p-5"
       >
         <p class="text-sm text-zinc-500">
-          篩選總盈虧
+          交易總盈虧
         </p>
 
         <p
@@ -921,6 +927,20 @@ const toggleTradeFavorite = (
             )
           }}
         </p>
+        <p class="mt-2 text-xs text-zinc-600">不含手續費</p>
+      </section>
+
+      <section
+        class="rounded-3xl border border-zinc-800 bg-zinc-900/70 p-5"
+      >
+        <p class="text-sm text-zinc-500">
+          手續費合計
+        </p>
+
+        <p class="mt-3 text-3xl font-semibold text-violet-300">
+          {{ formatMoney(filteredStatistics.totalCommission) }}
+        </p>
+        <p class="mt-2 text-xs text-zinc-600">獨立計算，不併入交易盈虧</p>
       </section>
     </div>
 
@@ -1216,7 +1236,7 @@ const toggleTradeFavorite = (
                 class="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4"
               >
                 <p class="text-xs text-zinc-500">
-                  交易盈虧
+                  交易盈虧（不含手續費）
                 </p>
 
                 <p
@@ -1242,6 +1262,9 @@ const toggleTradeFavorite = (
                     )
                   }}
                   </template>
+                </p>
+                <p class="mt-1 text-xs text-violet-300">
+                  手續費 {{ formatMoney(trade.commission) }}
                 </p>
               </div>
             </div>
@@ -1361,7 +1384,7 @@ const toggleTradeFavorite = (
               </div>
             </div>
 
-            <div class="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-4 xl:w-[560px]">
+            <div class="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-5 xl:w-[680px]">
               <div class="rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2.5">
                 <p class="text-[10px] text-zinc-500">進場／離場</p>
                 <p class="mt-1 text-xs font-medium text-zinc-200">
@@ -1373,9 +1396,15 @@ const toggleTradeFavorite = (
                 <p class="mt-1 text-xs font-medium text-zinc-200">{{ trade.lotSize ? `${trade.lotSize.toFixed(2)} lot` : '—' }}</p>
               </div>
               <div class="rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2.5">
-                <p class="text-[10px] text-zinc-500">盈虧</p>
+                <p class="text-[10px] text-zinc-500">交易盈虧</p>
                 <p class="mt-1 text-sm font-semibold" :class="profitLossClasses(trade.profitLoss)">
                   {{ trade.positionStatus === 'open' ? '未結算' : `${trade.profitLoss > 0 ? '+' : ''}${formatMoney(trade.profitLoss)}` }}
+                </p>
+              </div>
+              <div class="rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2.5">
+                <p class="text-[10px] text-zinc-500">手續費</p>
+                <p class="mt-1 text-sm font-semibold text-violet-300">
+                  {{ formatMoney(trade.commission) }}
                 </p>
               </div>
               <div class="rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2.5">
