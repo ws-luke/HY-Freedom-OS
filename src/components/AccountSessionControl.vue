@@ -36,6 +36,12 @@ const logout = async (): Promise<void> => {
       message: 'Freedom Account 已登出，本機與雲端交易資料均完整保留。',
     })
     await router.replace({ name: 'login' })
+    // A full navigation guarantees every protected component is destroyed and
+    // no stale trading screen remains painted while Supabase finishes clearing
+    // its persisted session on slower browsers.
+    if (router.currentRoute.value.name !== 'login') {
+      window.location.replace('/login')
+    }
   }
   catch {
     notificationStore.addNotification({
