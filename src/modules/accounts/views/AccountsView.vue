@@ -68,7 +68,21 @@ const {
 
 const orphanedAccountTrades = computed(() => {
   const accountIds = new Set(sortedAccounts.value.map(account => account.id))
-  return sortedTrades.value.filter(trade => Boolean(trade.accountId) && !accountIds.has(trade.accountId as string))
+  const accountNames = new Set(
+    sortedAccounts.value.map(account => account.name.trim().toLowerCase()),
+  )
+
+  return sortedTrades.value.filter(trade => {
+    if (trade.accountId) return !accountIds.has(trade.accountId)
+
+    // Earlier Freedom OS versions could leave imported MT5 trades without an
+    // accountId after the account itself was deleted. Match the saved account
+    // name as a compatibility fallback so those records can still be found.
+    if (trade.dataSource !== 'mt5') return false
+
+    const savedAccountName = trade.account.trim().toLowerCase()
+    return !savedAccountName || !accountNames.has(savedAccountName)
+  })
 })
 
 const selectedAccountId = ref<string | null>(
@@ -651,7 +665,7 @@ watch(
       <div>
         <p class="font-semibold text-amber-300">發現已刪除帳戶的殘留交易</p>
         <p class="mt-1 text-sm leading-6 text-zinc-500">
-          有 {{ orphanedAccountTrades.length }} 筆交易仍指向已不存在的帳戶，可安全一併清除。
+          有 {{ orphanedAccountTrades.length }} 筆 MT5 交易仍屬於已不存在的帳戶，可安全一併清除。
         </p>
       </div>
       <button
