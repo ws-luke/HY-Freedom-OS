@@ -6,6 +6,7 @@ import router from '@/router'
 import { onCloudAuthStateChange } from '@/services/cloud/cloud-auth.service'
 import { isCloudAuthRequired } from '@/services/runtime-mode.service'
 import { useNotificationStore } from '@/stores/useNotificationStore'
+import { useFontSizeStore } from '@/stores/useFontSizeStore'
 import { useThemeStore } from '@/stores/useThemeStore'
 import { usePwaStore } from '@/stores/usePwaStore'
 import { useAccessControlStore } from '@/stores/useAccessControlStore'
@@ -37,6 +38,7 @@ app.use(router)
 
 const themeStore = useThemeStore(pinia)
 themeStore.initialize()
+useFontSizeStore(pinia).initialize()
 usePwaStore(pinia).initialize()
 
 if (isCloudAuthRequired()) {

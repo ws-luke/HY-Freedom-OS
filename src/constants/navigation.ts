@@ -13,6 +13,7 @@ export const NAV_ITEMS: NavItem[] = [
   { name: 'trades', path: '/trades', label: '交易紀錄' },
   { name: 'playbook', path: '/playbook', label: '交易策略庫' },
   { name: 'review', path: '/review', label: '復盤與檢討' },
+  { name: 'weekly-report', path: '/weekly-report', label: '週報中心' },
   { name: 'ai-coach', path: '/ai-coach', label: 'AI 教練', featureKey: 'ai-coach' },
   { name: 'accounts', path: '/accounts', label: '帳戶管理' },
   { name: 'investment', path: '/investment', label: '資金管理', featureKey: 'capital-management' },

@@ -8,6 +8,7 @@ export const FREEDOM_DATA_KEYS = [
   'hy-freedom-os:daily-missions',
   'hy-freedom-os:risk-settings',
   'hy-freedom-os:theme',
+  'hy-freedom-os:font-size',
 ] as const
 
 export interface FreedomDataBackup {

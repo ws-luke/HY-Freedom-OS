@@ -11,12 +11,14 @@ import PwaInstallCard from '../components/PwaInstallCard.vue'
 import ProductionRuntimeCard from '../components/ProductionRuntimeCard.vue'
 import { useTradeStore } from '@/stores/useTradeStore'
 import { useConfirmDialogStore } from '@/stores/useConfirmDialogStore'
+import { useFontSizeStore } from '@/stores/useFontSizeStore'
 import { useNotificationStore } from '@/stores/useNotificationStore'
 import { useThemeStore } from '@/stores/useThemeStore'
 import type { TradeRecord } from '@/types/trade'
 
 const tradeStore = useTradeStore()
 const confirmDialog = useConfirmDialogStore()
+const fontSizeStore = useFontSizeStore()
 const notificationStore = useNotificationStore()
 const themeStore = useThemeStore()
 
@@ -103,7 +105,7 @@ const resetTradeData = async (): Promise<void> => {
         <h2
           class="mt-2 text-xl font-semibold text-zinc-100"
         >
-          顯示主題
+          顯示與文字
         </h2>
 
         <p
@@ -161,6 +163,39 @@ const resetTradeData = async (): Promise<void> => {
             class="hy-theme-check"
           >✓</span>
         </button>
+      </div>
+
+      <div class="mt-6 border-t border-zinc-800 pt-6">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 class="text-sm font-semibold text-zinc-200">介面文字大小</h3>
+            <p class="mt-1 text-xs leading-5 text-zinc-500">手機與電腦可各自保存，不會被背景同步覆蓋。</p>
+          </div>
+
+          <div class="grid grid-cols-3 gap-1 rounded-2xl border border-zinc-800 bg-zinc-950/50 p-1" role="group" aria-label="介面文字大小">
+            <button
+              v-for="choice in ([
+                { value: 'small', label: '小', sample: 'A' },
+                { value: 'medium', label: '中', sample: 'A' },
+                { value: 'large', label: '大', sample: 'A' },
+              ] as const)"
+              :key="choice.value"
+              type="button"
+              class="flex min-h-12 min-w-16 items-center justify-center gap-1 rounded-xl px-3 py-2 text-sm font-medium transition"
+              :class="fontSizeStore.fontSize === choice.value
+                ? 'bg-sky-300 text-zinc-950 shadow-sm'
+                : 'text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200'"
+              :aria-pressed="fontSizeStore.fontSize === choice.value"
+              @click="fontSizeStore.setFontSize(choice.value)"
+            >
+              <span
+                aria-hidden="true"
+                :class="choice.value === 'small' ? 'text-xs' : choice.value === 'large' ? 'text-lg' : 'text-sm'"
+              >{{ choice.sample }}</span>
+              <span>{{ choice.label }}</span>
+            </button>
+          </div>
+        </div>
       </div>
     </section>
 

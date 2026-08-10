@@ -11,7 +11,7 @@ import type { PlaybookRecord } from '@/types/playbook'
 import type { SignalRecord } from '@/types/signal'
 import type { StoredTradeReview } from '@/types/trade-review'
 import type { TradeRecord } from '@/types/trade'
-import type { TradingPlan } from '@/types/trading-plan'
+import type { TradingPlan, TradingPlanHistoryState } from '@/types/trading-plan'
 
 const MIGRATION_STORAGE_KEY = 'hy-freedom-os:cloud-migration'
 
@@ -349,42 +349,44 @@ const migrateTransactions = async (
   return rows.length
 }
 
-const migratePlan = async (plan: TradingPlan | null): Promise<number> => {
-  if (!plan) return 0
+const migratePlans = async (plans: TradingPlan[]): Promise<number> => {
+  if (!plans.length) return 0
 
   // Local TradingPlan existed before some of these fields were introduced.
   // Normalize at the Cloud boundary so legacy localStorage can never turn an
   // omitted property into NULL for a PostgreSQL NOT NULL column.
-  const date = safeText(plan.date, new Date().toISOString().slice(0, 10))
-  const symbol = safeText(plan.symbol, 'XAUUSD') || 'XAUUSD'
-  const marketBias = ['bullish', 'bearish', 'range', 'wait'].includes(plan.marketBias)
-    ? plan.marketBias
-    : 'wait'
+  const rows = plans.map(plan => {
+    const date = safeText(plan.date, new Date().toISOString().slice(0, 10))
+    const symbol = safeText(plan.symbol, 'XAUUSD') || 'XAUUSD'
+    const marketBias = ['bullish', 'bearish', 'range', 'wait'].includes(plan.marketBias) ? plan.marketBias : 'wait'
+    return {
+      local_id: `${date}:${symbol}`,
+      plan_date: date,
+      symbol,
+      market_bias: marketBias,
+      h4_trend: safeText(plan.h4Trend),
+      h1_trend: safeText(plan.h1Trend),
+      m15_structure: safeText(plan.m15Structure),
+      support_zones: safeText(plan.supportZones),
+      resistance_zones: safeText(plan.resistanceZones),
+      allowed_conditions: safeText(plan.allowedConditions),
+      prohibited_conditions: safeText(plan.prohibitedConditions),
+      waiting_signals: Array.isArray(plan.waitingSignals) ? plan.waitingSignals.filter((item): item is string => typeof item === 'string') : [],
+      focus_rule: safeText(plan.focusRule),
+      max_trades: Math.max(0, Math.round(safeNumber(plan.maxTrades, 2))),
+      max_risk_percent: Math.max(0, safeNumber(plan.maxRiskPercent, 1)),
+      notes: safeText(plan.notes),
+      completed: plan.completed === true,
+      news: safeText(plan.news),
+      session_plans: plan.sessions ?? {},
+      mindset_reminder: safeText(plan.mindsetReminder),
+      plan_version: 3,
+      updated_at: safeText(plan.updatedAt, new Date().toISOString()),
+    }
+  })
 
-  await upsertUserRows('trading_plans', [{
-    local_id: `${date}:${symbol}`,
-    plan_date: date,
-    symbol,
-    market_bias: marketBias,
-    h4_trend: safeText(plan.h4Trend),
-    h1_trend: safeText(plan.h1Trend),
-    m15_structure: safeText(plan.m15Structure),
-    support_zones: safeText(plan.supportZones),
-    resistance_zones: safeText(plan.resistanceZones),
-    allowed_conditions: safeText(plan.allowedConditions),
-    prohibited_conditions: safeText(plan.prohibitedConditions),
-    waiting_signals: Array.isArray(plan.waitingSignals)
-      ? plan.waitingSignals.filter((item): item is string => typeof item === 'string')
-      : [],
-    focus_rule: safeText(plan.focusRule),
-    max_trades: Math.max(0, Math.round(safeNumber(plan.maxTrades, 2))),
-    max_risk_percent: Math.max(0, safeNumber(plan.maxRiskPercent, 1)),
-    notes: safeText(plan.notes),
-    completed: plan.completed === true,
-    updated_at: safeText(plan.updatedAt, new Date().toISOString()),
-  }])
-
-  return 1
+  await upsertUserRows('trading_plans', rows)
+  return rows.length
 }
 
 const migrateMissions = async (state: StoredMissionState | null): Promise<number> => {
@@ -448,6 +450,7 @@ export const migrateLocalDataToCloud = async (): Promise<FreedomCloudMigrationSu
   const trades = readArray<TradeRecord>('hy-freedom-os:trades')
   const reviews = readArray<StoredTradeReview>('hy-freedom-os:trade-reviews')
   const plan = readJson<TradingPlan>('hy-freedom-os:trading-plan')
+  const planHistory = readJson<TradingPlanHistoryState>('hy-freedom-os:trading-plan-history')
   const missions = readJson<StoredMissionState>('hy-freedom-os:daily-missions')
   const risk = readJson<LocalRiskSettings>('hy-freedom-os:risk-settings')
   const theme = typeof window !== 'undefined'
@@ -467,7 +470,10 @@ export const migrateLocalDataToCloud = async (): Promise<FreedomCloudMigrationSu
   const reviewsCount = await migrateReviews(reviews, tradeResult.idMap)
   const screenshotsCount = await migrateTradeScreenshots(trades, tradeResult.idMap)
   const transactionsCount = await migrateTransactions(accountState, accountResult.idMap)
-  const plansCount = await migratePlan(plan)
+  const plans = Array.isArray(planHistory?.plans) && planHistory.plans.length
+    ? planHistory.plans
+    : plan ? [plan] : []
+  const plansCount = await migratePlans(plans)
   const missionsCount = await migrateMissions(missions)
   const settingsCount = await migrateSettings(risk, theme)
   const migratedAt = new Date().toISOString()

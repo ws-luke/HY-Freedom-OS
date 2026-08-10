@@ -40,7 +40,6 @@ const emit = defineEmits<{
 const newMissionTitle = ref('')
 const editingMissionId = ref<string | null>(null)
 const editingMissionTitle = ref('')
-const editInput = ref<HTMLInputElement | null>(null)
 
 const remainingCount = computed(() =>
   Math.max(0, props.totalCount - props.completedCount),
@@ -80,7 +79,11 @@ const startEditing = async (mission: DailyMission): Promise<void> => {
   editingMissionId.value = mission.id
   editingMissionTitle.value = mission.title
   await nextTick()
-  editInput.value?.focus()
+  const input = document.getElementById(`daily-mission-edit-${mission.id}`)
+  if (input instanceof HTMLInputElement) {
+    input.focus()
+    input.select()
+  }
 }
 
 const cancelEditing = (): void => {
@@ -243,7 +246,7 @@ const resetMissions = async (): Promise<void> => {
               @submit.prevent="saveEditing"
             >
               <input
-                ref="editInput"
+                :id="`daily-mission-edit-${mission.id}`"
                 v-model="editingMissionTitle"
                 type="text"
                 class="min-w-0 flex-1 rounded-xl border border-sky-400/25 bg-zinc-950 px-3.5 py-2.5 text-sm text-zinc-100 outline-none ring-2 ring-sky-400/5"

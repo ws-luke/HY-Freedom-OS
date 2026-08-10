@@ -15,7 +15,7 @@ import type { PlaybookRecord } from '@/types/playbook'
 import type { SignalRecord } from '@/types/signal'
 import type { StoredTradeReview } from '@/types/trade-review'
 import type { TradeRecord } from '@/types/trade'
-import type { TradingPlan } from '@/types/trading-plan'
+import type { TradingPlan, TradingPlanHistoryState } from '@/types/trading-plan'
 import type { FreedomCloudSyncRuntimeStatus, FreedomCloudSyncSummary } from '@/types/cloud'
 
 const WATCHED_KEYS = [
@@ -25,6 +25,7 @@ const WATCHED_KEYS = [
   'hy-freedom-os:trades',
   'hy-freedom-os:trade-reviews',
   'hy-freedom-os:trading-plan',
+  'hy-freedom-os:trading-plan-history',
   'hy-freedom-os:daily-missions',
   'hy-freedom-os:risk-settings',
   'hy-freedom-os:theme',
@@ -70,7 +71,8 @@ const applyLocalCacheToStores = (): void => {
   if (Array.isArray(reviews)) useTradeReviewStore().$patch({ reviews })
 
   const plan = readJson<TradingPlan>('hy-freedom-os:trading-plan')
-  if (plan) useTradingPlanStore().$patch({ plan })
+  const planHistory = readJson<TradingPlanHistoryState>('hy-freedom-os:trading-plan-history')
+  if (plan) useTradingPlanStore().$patch({ plan, plans: planHistory?.plans ?? [plan] })
 
   const missionState = readJson<StoredMissionState>('hy-freedom-os:daily-missions')
   if (missionState) {

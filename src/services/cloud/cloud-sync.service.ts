@@ -12,7 +12,8 @@ import type { PlaybookRecord } from '@/types/playbook'
 import type { SignalRecord } from '@/types/signal'
 import type { StoredTradeReview } from '@/types/trade-review'
 import type { TradeRecord, TradeScreenshot } from '@/types/trade'
-import type { TradingPlan } from '@/types/trading-plan'
+import { normalizeTradingPlan } from '@/stores/useTradingPlanStore'
+import type { TradingPlan, TradingPlanHistoryState } from '@/types/trading-plan'
 
 const SYNC_STORAGE_KEY = 'hy-freedom-os:cloud-sync'
 
@@ -23,6 +24,7 @@ const LOCAL_KEYS = {
   trades: 'hy-freedom-os:trades',
   reviews: 'hy-freedom-os:trade-reviews',
   plan: 'hy-freedom-os:trading-plan',
+  planHistory: 'hy-freedom-os:trading-plan-history',
   missions: 'hy-freedom-os:daily-missions',
   risk: 'hy-freedom-os:risk-settings',
   theme: 'hy-freedom-os:theme',
@@ -299,7 +301,7 @@ const snapshotRowCount = (snapshot: Awaited<ReturnType<typeof getCloudSnapshot>>
 
 const restoreSnapshot = async (
   snapshot: Awaited<ReturnType<typeof getCloudSnapshot>>,
-  options: { skipDeviceSettings?: boolean } = {},
+  options: { skipDeviceSettings?: boolean; skipTheme?: boolean } = {},
 ): Promise<number> => {
   const accountCloudToLocal = new Map(snapshot.accounts.map(row => [row.id, row.local_id]))
   const signalCloudToLocal = new Map(snapshot.signals.map(row => [row.id, row.local_id]))
@@ -505,9 +507,7 @@ const restoreSnapshot = async (
   })
   writeJson(LOCAL_KEYS.reviews, [...reviewByTrade.values()])
 
-  const newestPlan = [...snapshot.plans].sort((a, b) => text(b.updated_at).localeCompare(text(a.updated_at)))[0]
-  if (newestPlan) {
-    const cloudPlan: TradingPlan = {
+  const cloudPlans = snapshot.plans.map(newestPlan => normalizeTradingPlan({
       date: text(newestPlan.plan_date),
       symbol: text(newestPlan.symbol),
       marketBias: text(newestPlan.market_bias, 'wait') as TradingPlan['marketBias'],
@@ -525,12 +525,28 @@ const restoreSnapshot = async (
       notes: text(newestPlan.notes),
       completed: boolean(newestPlan.completed),
       updatedAt: text(newestPlan.updated_at),
-    }
-
-    const localPlan = readJson<TradingPlan>(LOCAL_KEYS.plan)
-    if (!localPlan || newestTimestamp(cloudPlan.updatedAt) >= newestTimestamp(localPlan.updatedAt)) {
-      writeJson(LOCAL_KEYS.plan, cloudPlan)
-    }
+      news: text(newestPlan.news),
+      sessions: newestPlan.session_plans && typeof newestPlan.session_plans === 'object'
+        ? newestPlan.session_plans as TradingPlan['sessions']
+        : undefined,
+      mindsetReminder: text(newestPlan.mindset_reminder),
+      version: 3,
+    }))
+  if (cloudPlans.length) {
+    const localHistory = readJson<TradingPlanHistoryState>(LOCAL_KEYS.planHistory)
+    const merged = new Map<string, TradingPlan>()
+    ;[...(localHistory?.plans ?? []), ...cloudPlans].forEach(item => {
+      const normalized = normalizeTradingPlan(item)
+      const key = `${normalized.date}:${normalized.symbol}`
+      const current = merged.get(key)
+      if (!current || newestTimestamp(normalized.updatedAt) >= newestTimestamp(current.updatedAt)) merged.set(key, normalized)
+    })
+    const plans = [...merged.values()]
+    writeJson(LOCAL_KEYS.planHistory, { plans, updatedAt: new Date().toISOString() } satisfies TradingPlanHistoryState)
+    const today = new Date().toLocaleDateString('sv-SE')
+    const activePlan = plans.find(item => item.date === today)
+      ?? [...plans].sort((a, b) => b.date.localeCompare(a.date))[0]
+    if (activePlan) writeJson(LOCAL_KEYS.plan, activePlan)
   }
 
   const missionsByDate = new Map<string, CloudIdRow[]>()
@@ -580,7 +596,12 @@ const restoreSnapshot = async (
     }
 
     const settings = snapshot.appSettings[0]?.settings
-    if (settings && typeof settings === 'object' && !Array.isArray(settings)) {
+    if (
+      !options.skipTheme &&
+      settings &&
+      typeof settings === 'object' &&
+      !Array.isArray(settings)
+    ) {
       const theme = (settings as Record<string, unknown>).theme
       if (theme === 'dark' || theme === 'light') {
         window.localStorage.setItem(LOCAL_KEYS.theme, theme)
@@ -631,7 +652,9 @@ const performFreedomCloudSync = async (): Promise<FreedomCloudSyncSummary> => {
   }
 
   applyCloudTombstones(snapshot.tombstones)
-  pulledRows = await restoreSnapshot(snapshot)
+  // Appearance is device-local. Keep the Cloud copy as a backup, but never
+  // let background reconciliation replace the active phone/PC theme.
+  pulledRows = await restoreSnapshot(snapshot, { skipTheme: true })
   const summary: FreedomCloudSyncSummary = {
     userId: identity.userId,
     direction,

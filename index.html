@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-Hant" data-theme="dark">
+<html lang="zh-Hant" data-theme="dark" data-font-size="medium">
   <head>
     <meta charset="UTF-8">
     <link rel="icon" type="image/svg+xml" href="/freedom-os-icon.svg">
@@ -156,6 +156,16 @@
             : 'dark'
       } catch {
         document.documentElement.dataset.theme = 'dark'
+      }
+
+      try {
+        const storedFontSize = localStorage.getItem('hy-freedom-os:font-size')
+        document.documentElement.dataset.fontSize =
+          storedFontSize === 'small' || storedFontSize === 'large'
+            ? storedFontSize
+            : 'medium'
+      } catch {
+        document.documentElement.dataset.fontSize = 'medium'
       }
     </script>
   </head>

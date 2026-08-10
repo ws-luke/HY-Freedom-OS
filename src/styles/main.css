@@ -17,6 +17,19 @@
   --hy-soft-shadow: rgba(0, 0, 0, 0.2);
 }
 
+:root[data-font-size='small'] {
+  font-size: 14px;
+}
+
+:root[data-font-size='medium'],
+:root:not([data-font-size]) {
+  font-size: 16px;
+}
+
+:root[data-font-size='large'] {
+  font-size: 18px;
+}
+
 :root[data-theme='light'] {
   color-scheme: light;
   --hy-app-bg: #f5f7fb;
@@ -59,6 +72,28 @@ textarea,
     background-color 180ms ease,
     border-color 180ms ease,
     color 180ms ease;
+}
+
+/* Chromium and Windows render the expanded option list in a native popup.
+ * Option elements do not reliably inherit Tailwind text/background utilities
+ * from their select, so define both themes explicitly. */
+:root[data-theme='dark'] select,
+:root:not([data-theme]) select {
+  color-scheme: dark;
+}
+
+:root[data-theme='dark'] select option,
+:root[data-theme='dark'] select optgroup,
+:root:not([data-theme]) select option,
+:root:not([data-theme]) select optgroup {
+  background-color: #18181b;
+  color: #f4f4f5;
+}
+
+:root[data-theme='light'] select option,
+:root[data-theme='light'] select optgroup {
+  background-color: #ffffff;
+  color: #0f172a;
 }
 
 .hy-mobile-nav {
@@ -282,6 +317,7 @@ textarea,
 :root[data-theme='light'] [class~='bg-zinc-900/60'],
 :root[data-theme='light'] [class~='bg-zinc-900/65'],
 :root[data-theme='light'] [class~='bg-zinc-900/70'],
+:root[data-theme='light'] [class~='bg-zinc-900/75'],
 :root[data-theme='light'] [class~='bg-zinc-900/80'] {
   background-color: rgba(255, 255, 255, 0.94) !important;
 }

@@ -19,6 +19,15 @@ const flags = ref<FeatureFlag[]>([])
 const loading = ref(true)
 const busyKey = ref('')
 
+const errorText = (error: unknown, fallback: string): string => {
+  if (error instanceof Error) return error.message
+  if (error && typeof error === 'object' && 'message' in error) {
+    const message = (error as { message?: unknown }).message
+    if (typeof message === 'string' && message.trim()) return message
+  }
+  return fallback
+}
+
 const releaseOptions: Array<{ value: FeatureReleaseMode; label: string }> = [
   { value: 'admin', label: '僅管理員' },
   { value: 'selected', label: '指定測試者' },
@@ -40,7 +49,7 @@ const loadData = async (): Promise<void> => {
     notificationStore.addNotification({
       type: 'danger',
       title: '權限資料載入失敗',
-      message: error instanceof Error ? error.message : '請確認 Access Control 資料庫升級已完成。',
+      message: errorText(error, '請確認 Access Control 資料庫升級已完成。'),
     })
   }
   finally {
@@ -57,7 +66,7 @@ const changeMode = async (flag: FeatureFlag, mode: FeatureReleaseMode): Promise<
     notificationStore.addNotification({ type: 'success', title: '功能權限已更新', message: `${flag.label}的開放範圍已變更。` })
   }
   catch (error) {
-    notificationStore.addNotification({ type: 'danger', title: '更新失敗', message: error instanceof Error ? error.message : '請稍後再試。' })
+    notificationStore.addNotification({ type: 'danger', title: '更新失敗', message: errorText(error, '請稍後再試。') })
   }
   finally { busyKey.value = '' }
 }
@@ -70,7 +79,7 @@ const changeRole = async (user: AccessUser, role: FreedomRole): Promise<void> =>
     notificationStore.addNotification({ type: 'success', title: '使用者角色已更新', message: `${user.email ?? '使用者'}目前為${role === 'admin' ? '管理員' : '一般使用者'}。` })
   }
   catch (error) {
-    notificationStore.addNotification({ type: 'danger', title: '角色更新失敗', message: error instanceof Error ? error.message : '請稍後再試。' })
+    notificationStore.addNotification({ type: 'danger', title: '角色更新失敗', message: errorText(error, '請稍後再試。') })
   }
   finally { busyKey.value = '' }
 }
@@ -84,7 +93,7 @@ const toggleSelectedAccess = async (user: AccessUser, flag: FeatureFlag, enabled
       : user.selectedFeatures.filter(key => key !== flag.key)
   }
   catch (error) {
-    notificationStore.addNotification({ type: 'danger', title: '測試權限更新失敗', message: error instanceof Error ? error.message : '請稍後再試。' })
+    notificationStore.addNotification({ type: 'danger', title: '測試權限更新失敗', message: errorText(error, '請稍後再試。') })
   }
   finally { busyKey.value = '' }
 }

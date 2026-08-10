@@ -7,11 +7,23 @@ import { useAccessControlStore } from '@/stores/useAccessControlStore'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
+  scrollBehavior(_to, _from, savedPosition) {
+    // Browser back/forward restores the previous reading position. Every new
+    // page navigation starts at the top instead of inheriting the last page's
+    // scroll offset from the shared application layout.
+    return savedPosition ?? { left: 0, top: 0 }
+  },
   routes: [
     {
       path: '/login',
       name: 'login',
       component: () => import('@/modules/auth/views/LoginView.vue'),
+    },
+    {
+      path: '/share/weekly/:token',
+      name: 'public-weekly-report',
+      component: () => import('@/modules/weekly-report/views/PublicWeeklyReportView.vue'),
+      meta: { public: true },
     },
     {
       path: '/',
@@ -74,6 +86,11 @@ const router = createRouter({
             import('@/modules/review/views/ReviewView.vue'),
         },
         {
+          path: 'weekly-report',
+          name: 'weekly-report',
+          component: () => import('@/modules/weekly-report/views/WeeklyReportView.vue'),
+        },
+        {
           path: 'ai-coach',
           name: 'ai-coach',
           component: () =>
@@ -124,6 +141,8 @@ const router = createRouter({
 })
 
 router.beforeEach(async to => {
+  if (to.meta.public) return true
+
   if (!isCloudAuthRequired()) {
     return to.name === 'login' ? { name: 'mission-control' } : true
   }

@@ -8,6 +8,11 @@ import type {
 } from '@/types/mission'
 
 const STORAGE_KEY = 'hy-freedom-os:daily-missions'
+const RETIRED_DEFAULT_MISSION_IDS = new Set([
+  'draw-h4',
+  'draw-h1',
+  'draw-m15',
+])
 
 const getLocalDateKey = (): string => {
   const now = new Date()
@@ -20,42 +25,48 @@ const getLocalDateKey = (): string => {
 
 const createDefaultMissions = (): DailyMission[] => [
   {
-    id: 'draw-h4',
-    title: '畫 4H 趨勢與主要支撐壓力',
-    completed: false,
-    order: 1,
-  },
-  {
-    id: 'draw-h1',
-    title: '確認 1H 結構與關鍵區域',
-    completed: false,
-    order: 2,
-  },
-  {
-    id: 'draw-m15',
-    title: '更新 15M 進場觀察區',
-    completed: false,
-    order: 3,
-  },
-  {
     id: 'economic-events',
     title: '確認今日重要經濟數據',
     completed: false,
-    order: 4,
+    order: 1,
   },
   {
     id: 'complete-plan',
     title: '完成今日盤前規劃',
     completed: false,
-    order: 5,
+    order: 2,
   },
   {
     id: 'review-yesterday',
     title: '完成昨日交易復盤',
     completed: false,
-    order: 6,
+    order: 3,
   },
 ]
+
+const migrateCurrentMissions = (storedMissions: DailyMission[]): DailyMission[] => {
+  const storedById = new Map(storedMissions.map(mission => [mission.id, mission]))
+  const defaults = createDefaultMissions().map(mission => ({
+    ...mission,
+    completed: storedById.get(mission.id)?.completed ?? false,
+  }))
+  const activeDefaultIds = new Set(defaults.map(mission => mission.id))
+  const customMissions = storedMissions.filter(mission => (
+    !activeDefaultIds.has(mission.id) &&
+    !RETIRED_DEFAULT_MISSION_IDS.has(mission.id)
+  ))
+
+  for (const retiredId of RETIRED_DEFAULT_MISSION_IDS) {
+    if (storedById.has(retiredId)) {
+      queueCloudDeletion('daily_missions', retiredId)
+    }
+  }
+
+  return [...defaults, ...customMissions].map((mission, index) => ({
+    ...mission,
+    order: index + 1,
+  }))
+}
 
 const readStoredState = (): StoredMissionState | null => {
   if (typeof window === 'undefined') {
@@ -94,7 +105,7 @@ export const useDailyMissionStore = defineStore(
 
     const missions = ref<DailyMission[]>(
       storedState?.date === today.value
-        ? storedState.missions
+        ? migrateCurrentMissions(storedState.missions)
         : createDefaultMissions(),
     )
 
@@ -226,6 +237,7 @@ export const useDailyMissionStore = defineStore(
       save,
       {
         deep: true,
+        immediate: true,
       },
     )
 

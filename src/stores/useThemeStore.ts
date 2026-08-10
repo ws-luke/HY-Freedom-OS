@@ -49,8 +49,26 @@ export const useThemeStore = defineStore('theme', () => {
     syncDocumentTheme()
   }
 
+  const persistTheme = (nextTheme: AppTheme): void => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      window.localStorage.setItem(
+        THEME_STORAGE_KEY,
+        nextTheme,
+      )
+    } catch {
+      // Theme still works for the current session when storage is unavailable.
+    }
+  }
+
   const setTheme = (nextTheme: AppTheme): void => {
+    // Save synchronously before other lifecycle work can read the old value.
+    persistTheme(nextTheme)
     theme.value = nextTheme
+    syncDocumentTheme()
   }
 
   const toggleTheme = (): void => {
@@ -58,17 +76,7 @@ export const useThemeStore = defineStore('theme', () => {
   }
 
   watch(theme, nextTheme => {
-    if (typeof window !== 'undefined') {
-      try {
-        window.localStorage.setItem(
-          THEME_STORAGE_KEY,
-          nextTheme,
-        )
-      } catch {
-        // Theme still works for the current session when storage is unavailable.
-      }
-    }
-
+    persistTheme(nextTheme)
     syncDocumentTheme()
   })
 

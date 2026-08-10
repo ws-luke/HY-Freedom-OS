@@ -27,6 +27,7 @@ const moduleLabels: Record<string, string> = {
   'hy-freedom-os:daily-missions': '每日任務',
   'hy-freedom-os:risk-settings': '交易風控設定',
   'hy-freedom-os:theme': '顯示主題',
+  'hy-freedom-os:font-size': '介面文字大小',
 }
 
 const backupModules = computed(() =>
